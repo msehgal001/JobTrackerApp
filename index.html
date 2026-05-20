@@ -55,29 +55,37 @@
 
 <!-- ===== MAIN APP ===== -->
 <div class="app" id="app" style="display:none">
+  <!-- Mobile top bar -->
+  <header class="topbar">
+    <div class="topbar-brand">JOB<span class="accent">.</span>COMMAND</div>
+    <div class="sync-status sync-status-compact" id="sync-status-mobile">
+      <span class="sync-dot"></span>
+    </div>
+  </header>
+
   <aside class="sidebar">
     <div class="brand">
       <h1>JOB<span class="accent">.</span><br>COMMAND</h1>
       <div class="tag">v2.0 — cloud sync</div>
     </div>
     <div class="nav-item active" data-view="dashboard">
-      <span class="icon">◆</span> Dashboard
+      <span class="icon">◆</span> <span class="nav-label">Dashboard</span>
       <span class="badge" id="badge-actions">0</span>
     </div>
     <div class="nav-item" data-view="applications">
-      <span class="icon">▦</span> Applications
+      <span class="icon">▦</span> <span class="nav-label">Applications</span>
     </div>
     <div class="nav-item" data-view="parser">
-      <span class="icon">⊕</span> Add Job
+      <span class="icon">⊕</span> <span class="nav-label">Add Job</span>
     </div>
     <div class="nav-item" data-view="connections">
-      <span class="icon">◉</span> Connections
+      <span class="icon">◉</span> <span class="nav-label">Connections</span>
     </div>
     <div class="nav-item" data-view="templates">
-      <span class="icon">✎</span> Templates
+      <span class="icon">✎</span> <span class="nav-label">Templates</span>
     </div>
     <div class="nav-item" data-view="settings">
-      <span class="icon">⚙</span> Settings
+      <span class="icon">⚙</span> <span class="nav-label">Settings</span>
     </div>
     <div class="sidebar-foot">
       <div class="sync-status" id="sync-status">
@@ -146,18 +154,22 @@
     <div class="view" id="view-parser">
       <div class="page-header">
         <h2>Add Job.</h2>
-        <div class="date">Paste JD → parsed → tracked</div>
+        <div class="date">Paste URL or JD → parsed → tracked</div>
       </div>
       <div class="section">
-        <label>JD URL (optional)</label>
-        <input type="url" id="parser-url" placeholder="https://careers.company.com/jobs/12345">
+        <label>JD URL (paste and click Fetch — works on most public ATS pages)</label>
+        <div class="url-row">
+          <input type="url" id="parser-url" placeholder="https://careers.company.com/jobs/12345" inputmode="url" autocapitalize="off" autocorrect="off">
+          <button class="primary" id="fetch-url-btn" onclick="fetchJDFromURL()">⤓ Fetch &amp; Parse</button>
+        </div>
+        <div class="hint">Heavy anti-bot sites (LinkedIn Jobs, some Workday pages) may fail — paste the text below instead.</div>
       </div>
       <div class="parser-grid">
         <div class="parser-input">
-          <label>Paste full JD text here ↓</label>
+          <label>Or paste full JD text here ↓</label>
           <textarea id="parser-text" placeholder="Paste the entire job description. Parser will extract company, title, location, requirements, salary, and flag any ITAR/citizenship requirements that block F1/OPT."></textarea>
           <div class="flex gap mt-2">
-            <button class="primary" onclick="parseJD()">⚡ Parse JD</button>
+            <button class="primary" onclick="parseJD()">⚡ Parse Text</button>
             <button onclick="clearParser()">Clear</button>
           </div>
         </div>

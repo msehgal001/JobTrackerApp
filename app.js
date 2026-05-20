@@ -125,12 +125,15 @@ async function confirmWipe() {
 // ============ SYNC INDICATOR ============
 function setSyncState(s) {
   syncState = s;
-  const el = document.getElementById('sync-status');
-  if (!el) return;
-  el.classList.remove('online', 'syncing', 'error');
-  el.classList.add(s);
   const labels = { idle: 'Idle', syncing: 'Syncing...', online: 'Synced', error: 'Offline' };
-  document.getElementById('sync-label').textContent = labels[s] || s;
+  ['sync-status', 'sync-status-mobile'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove('online', 'syncing', 'error');
+    el.classList.add(s);
+  });
+  const label = document.getElementById('sync-label');
+  if (label) label.textContent = labels[s] || s;
 }
 
 async function checkConnection() {
@@ -309,11 +312,15 @@ function actionCardHTML(a, kind) {
   const whenClass = kind === 'overdue' ? 'overdue-text' : kind === 'today' ? 'today-text' : '';
   const editFn = a.type === 'app' ? `openAppModal('${a.id}')` : `openConnectionModal('${a.id}')`;
   const msgFn = `openMessageFor('${a.type}','${a.id}')`;
+  const directUrl = a.type === 'app' ? a.raw.jd_url : a.raw.linkedin_url;
+  const linkLabel = a.type === 'app' ? '↗ JD' : '↗ in';
+  const linkBtn = directUrl ? `<a class="link-btn" href="${escapeHTML(directUrl)}" target="_blank" rel="noopener">${linkLabel}</a>` : '';
   return `<div class="action-card ${kind}">
     <div class="when ${whenClass}">${whenLabel}</div>
     <div class="what"><div class="target">${escapeHTML(a.target)}</div><div class="desc">${escapeHTML(a.action)} • ${escapeHTML(a.sub)}</div></div>
     <div class="actions">
-      <button onclick="${msgFn}">✎ Message</button>
+      ${linkBtn}
+      <button onclick="${msgFn}">✎ Msg</button>
       <button onclick="${editFn}">Edit</button>
       <button onclick="markActionDone('${a.type}','${a.id}')">✓ Done</button>
     </div>
@@ -360,6 +367,7 @@ function renderApps() {
     const n = computeNextAction(a, 'app');
     const overdue = n.date && n.date < today();
     const statusKey = (a.status || '').replace('_screen', '').replace('_call', '').replace('not_applied', '');
+    const linkBtn = a.jd_url ? `<a class="link-btn" href="${escapeHTML(a.jd_url)}" target="_blank" rel="noopener" title="Open JD">↗ JD</a>` : '';
     return `<tr>
       <td><div class="row-name">${escapeHTML(a.company || '—')}</div><div class="row-sub">${escapeHTML(a.role || '')}</div></td>
       <td class="muted">${escapeHTML(a.location || '—')}</td>
@@ -367,13 +375,43 @@ function renderApps() {
       <td class="muted">${fmtDate(a.applied_date)}</td>
       <td class="muted">${escapeHTML(a.referrer || '—')}</td>
       <td style="color:${overdue ? 'var(--red)' : 'var(--text-dim)'}">${n.date ? fmtDate(n.date) : '—'}<div class="row-sub">${escapeHTML(n.action)}</div></td>
-      <td><button onclick="openAppModal('${a.id}')">Edit</button></td>
+      <td class="actions-col">${linkBtn}<button onclick="openAppModal('${a.id}')">Edit</button></td>
     </tr>`;
   }).join('');
-  document.getElementById('apps-table').innerHTML = `<div class="table-scroll"><table>
-    <thead><tr><th>Company / Role</th><th>Location</th><th>Status</th><th>Applied</th><th>Referrer</th><th>Next action</th><th></th></tr></thead>
-    <tbody>${rows}</tbody>
-  </table></div>`;
+
+  // Mobile card view (same data, different layout)
+  const cards = filtered.map(a => {
+    const n = computeNextAction(a, 'app');
+    const overdue = n.date && n.date < today();
+    const statusKey = (a.status || '').replace('_screen', '').replace('_call', '').replace('not_applied', '');
+    const linkBtn = a.jd_url ? `<a class="link-btn" href="${escapeHTML(a.jd_url)}" target="_blank" rel="noopener">↗ Open JD</a>` : '';
+    return `<div class="list-card">
+      <div class="list-card-head">
+        <div>
+          <div class="list-card-title">${escapeHTML(a.company || '—')}</div>
+          <div class="list-card-sub">${escapeHTML(a.role || '')}</div>
+        </div>
+        <span class="pill ${statusKey}">${(a.status || '').replace(/_/g, ' ')}</span>
+      </div>
+      <div class="list-card-meta">
+        ${a.location ? `<span>${escapeHTML(a.location)}</span>` : ''}
+        ${a.applied_date ? `<span>Applied ${fmtDate(a.applied_date)}</span>` : ''}
+        ${a.referrer ? `<span>via ${escapeHTML(a.referrer)}</span>` : ''}
+      </div>
+      ${n.date ? `<div class="list-card-next ${overdue ? 'overdue' : ''}">${fmtDate(n.date)} — ${escapeHTML(n.action)}</div>` : ''}
+      <div class="list-card-actions">
+        ${linkBtn}
+        <button onclick="openAppModal('${a.id}')">Edit</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('apps-table').innerHTML = `
+    <div class="table-scroll desktop-only"><table>
+      <thead><tr><th>Company / Role</th><th>Location</th><th>Status</th><th>Applied</th><th>Referrer</th><th>Next action</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+    <div class="list-cards mobile-only">${cards}</div>`;
 }
 
 function openAppModal(id) {
@@ -462,10 +500,47 @@ async function deleteApp() {
 // ============ JD PARSER ============
 function parseJD() {
   const text = document.getElementById('parser-text').value;
-  if (!text.trim()) { alert('Paste a JD first.'); return; }
+  if (!text.trim()) { alert('Paste a JD first, or use Fetch & Parse with a URL.'); return; }
   const out = extractFields(text);
   out.jd_url = document.getElementById('parser-url').value.trim();
   renderParserOutput(out, text);
+}
+
+async function fetchJDFromURL() {
+  const url = document.getElementById('parser-url').value.trim();
+  if (!url) { alert('Paste a JD URL first.'); return; }
+  if (!/^https?:\/\//i.test(url)) { alert('URL must start with http:// or https://'); return; }
+
+  const btn = document.getElementById('fetch-url-btn');
+  const originalLabel = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Fetching...';
+
+  try {
+    // r.jina.ai is a free reader-mode proxy that returns clean markdown for any URL.
+    // Bypasses CORS and renders JS. Falls back gracefully if blocked.
+    const proxyUrl = 'https://r.jina.ai/' + url;
+    const resp = await fetch(proxyUrl, {
+      method: 'GET',
+      headers: { 'Accept': 'text/plain' }
+    });
+    if (!resp.ok) throw new Error(`Reader returned ${resp.status}`);
+    const text = await resp.text();
+    if (!text || text.length < 100) throw new Error('Empty or too-short response — site may be blocking the reader.');
+
+    // Stuff into the textarea so the user can see what was fetched and edit if needed.
+    document.getElementById('parser-text').value = text;
+
+    const out = extractFields(text);
+    out.jd_url = url;
+    renderParserOutput(out, text);
+    toast('Fetched. Review the parsed fields below.', 'success');
+  } catch (e) {
+    toast('Fetch failed: ' + e.message + ' — paste the JD text manually.', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalLabel;
+  }
 }
 
 function extractFields(text) {
@@ -588,22 +663,51 @@ function renderConnections() {
   const rows = filtered.map(c => {
     const n = computeNextAction(c, 'conn');
     const overdue = n.date && n.date < today();
+    const linkBtn = c.linkedin_url ? `<a class="link-btn" href="${escapeHTML(c.linkedin_url)}" target="_blank" rel="noopener" title="Open LinkedIn">↗ in</a>` : '';
     return `<tr>
-      <td><div class="row-name">${escapeHTML(c.name || '—')}</div><div class="row-sub">${c.linkedin_url ? `<a href="${escapeHTML(c.linkedin_url)}" target="_blank" rel="noopener" style="color:var(--blue)">LinkedIn ↗</a>` : ''}</div></td>
+      <td><div class="row-name">${escapeHTML(c.name || '—')}</div></td>
       <td><div>${escapeHTML(c.company || '—')}</div><div class="row-sub">${escapeHTML(c.role || '')}</div></td>
       <td><span class="pill tier-${c.tier || 'D'}">Tier ${c.tier || 'D'}</span></td>
       <td><span class="pill">${(c.status || 'identified').replace(/_/g, ' ')}</span></td>
       <td style="color:${overdue ? 'var(--red)' : 'var(--text-dim)'}">${n.date ? fmtDate(n.date) : '—'}<div class="row-sub">${escapeHTML(n.action)}</div></td>
-      <td>
+      <td class="actions-col">
+        ${linkBtn}
         <button onclick="openMessageFor('conn','${c.id}')">✎</button>
         <button onclick="openConnectionModal('${c.id}')">Edit</button>
       </td>
     </tr>`;
   }).join('');
-  document.getElementById('conn-table').innerHTML = `<div class="table-scroll"><table>
-    <thead><tr><th>Name</th><th>Company / Role</th><th>Tier</th><th>Status</th><th>Next action</th><th></th></tr></thead>
-    <tbody>${rows}</tbody>
-  </table></div>`;
+
+  const cards = filtered.map(c => {
+    const n = computeNextAction(c, 'conn');
+    const overdue = n.date && n.date < today();
+    const linkBtn = c.linkedin_url ? `<a class="link-btn" href="${escapeHTML(c.linkedin_url)}" target="_blank" rel="noopener">↗ LinkedIn</a>` : '';
+    return `<div class="list-card">
+      <div class="list-card-head">
+        <div>
+          <div class="list-card-title">${escapeHTML(c.name || '—')}</div>
+          <div class="list-card-sub">${escapeHTML(c.company || '')}${c.role ? ' — ' + escapeHTML(c.role) : ''}</div>
+        </div>
+        <span class="pill tier-${c.tier || 'D'}">Tier ${c.tier || 'D'}</span>
+      </div>
+      <div class="list-card-meta">
+        <span class="pill">${(c.status || 'identified').replace(/_/g, ' ')}</span>
+      </div>
+      ${n.date ? `<div class="list-card-next ${overdue ? 'overdue' : ''}">${fmtDate(n.date)} — ${escapeHTML(n.action)}</div>` : ''}
+      <div class="list-card-actions">
+        ${linkBtn}
+        <button onclick="openMessageFor('conn','${c.id}')">✎ Msg</button>
+        <button onclick="openConnectionModal('${c.id}')">Edit</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('conn-table').innerHTML = `
+    <div class="table-scroll desktop-only"><table>
+      <thead><tr><th>Name</th><th>Company / Role</th><th>Tier</th><th>Status</th><th>Next action</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+    <div class="list-cards mobile-only">${cards}</div>`;
 }
 
 function openConnectionModal(id) {
