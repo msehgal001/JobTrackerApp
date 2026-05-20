@@ -10,6 +10,6 @@
 // ============================================================
 
 window.SUPABASE_CONFIG = {
-  url: "https://YOUR-PROJECT-REF.supabase.co",
-  anonKey: "YOUR-ANON-PUBLIC-KEY-HERE"
+  url: "https://xdynspmgsvxvhfdouaoc.supabase.co",
+  anonKey: "sb_publishable_cE1_Cvp3dOyRaov07sELlQ_bbsxnjgg"
 };
