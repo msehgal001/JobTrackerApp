@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0f">
+<meta name="description" content="Personal job search command center">
+<title>Job Command</title>
+
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Job Command">
+<meta name="mobile-web-app-capable" content="yes">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,700;9..144,900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ===== SETUP / LOGIN SCREEN (first-time on each device) ===== -->
+<div id="setup-screen" class="setup-screen" style="display:none">
+  <div class="setup-card">
+    <div class="setup-brand">JOB<span>.</span>COMMAND</div>
+    <h2>Welcome.</h2>
+    <p class="setup-sub">Paste your secret access token to unlock your tracker on this device. You set this up once in Supabase — same token across all your devices.</p>
+    <label>Access token</label>
+    <input type="password" id="setup-token" placeholder="Paste your token (long random string)" autocomplete="off">
+    <button class="primary big" onclick="setupToken()">Unlock</button>
+    <div id="setup-error" class="setup-error"></div>
+    <details class="setup-help">
+      <summary>First time setup? Read this.</summary>
+      <ol>
+        <li>You should have already created a Supabase project and run the SQL schema.</li>
+        <li>Your token is whatever random string you saved — paste it above.</li>
+        <li>The token gets stored on this device only (localStorage). Never sent to GitHub, never in the URL.</li>
+        <li>On a different device, you'll paste it once and it'll save there too.</li>
+        <li>If you lose your token, your data is unreachable (this is by design).</li>
+      </ol>
+    </details>
+  </div>
+</div>
+
+<!-- ===== CONNECTION ERROR BANNER ===== -->
+<div id="connection-error" class="connection-error" style="display:none">
+  <span id="connection-error-text">Connection error</span>
+  <button onclick="checkConnection()">Retry</button>
+  <button onclick="logout()" class="ghost">Reset token</button>
+</div>
+
+<!-- ===== MAIN APP ===== -->
+<div class="app" id="app" style="display:none">
+  <aside class="sidebar">
+    <div class="brand">
+      <h1>JOB<span class="accent">.</span><br>COMMAND</h1>
+      <div class="tag">v2.0 — cloud sync</div>
+    </div>
+    <div class="nav-item active" data-view="dashboard">
+      <span class="icon">◆</span> Dashboard
+      <span class="badge" id="badge-actions">0</span>
+    </div>
+    <div class="nav-item" data-view="applications">
+      <span class="icon">▦</span> Applications
+    </div>
+    <div class="nav-item" data-view="parser">
+      <span class="icon">⊕</span> Add Job
+    </div>
+    <div class="nav-item" data-view="connections">
+      <span class="icon">◉</span> Connections
+    </div>
+    <div class="nav-item" data-view="templates">
+      <span class="icon">✎</span> Templates
+    </div>
+    <div class="nav-item" data-view="settings">
+      <span class="icon">⚙</span> Settings
+    </div>
+    <div class="sidebar-foot">
+      <div class="sync-status" id="sync-status">
+        <span class="sync-dot"></span>
+        <span id="sync-label">Connecting...</span>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <!-- DASHBOARD -->
+    <div class="view active" id="view-dashboard">
+      <div class="page-header">
+        <h2>Today.</h2>
+        <div class="date" id="today-date"></div>
+      </div>
+      <div class="stat-grid">
+        <div class="stat"><div class="label">Active apps</div><div class="value" id="stat-active">0</div><div class="sub">in pipeline</div></div>
+        <div class="stat green"><div class="label">Interviews</div><div class="value" id="stat-interviews">0</div><div class="sub">scheduled or in flight</div></div>
+        <div class="stat blue"><div class="label">Connections</div><div class="value" id="stat-connections">0</div><div class="sub">total in system</div></div>
+        <div class="stat red"><div class="label">Overdue</div><div class="value" id="stat-overdue">0</div><div class="sub">follow-ups missed</div></div>
+      </div>
+      <div class="section">
+        <h3>🔥 Overdue — do these first <span class="count" id="count-overdue">0</span></h3>
+        <div id="list-overdue"></div>
+      </div>
+      <div class="section">
+        <h3>⚡ Today <span class="count" id="count-today">0</span></h3>
+        <div id="list-today"></div>
+      </div>
+      <div class="section">
+        <h3>↗ Upcoming (next 7 days) <span class="count" id="count-upcoming">0</span></h3>
+        <div id="list-upcoming"></div>
+      </div>
+      <div class="section">
+        <h3>Pipeline funnel</h3>
+        <div class="funnel" id="funnel"></div>
+      </div>
+    </div>
+
+    <!-- APPLICATIONS -->
+    <div class="view" id="view-applications">
+      <div class="page-header">
+        <h2>Applications.</h2>
+        <button class="primary" onclick="openView('parser')">+ Add Job</button>
+      </div>
+      <div class="table-wrap">
+        <div class="table-controls">
+          <input type="text" id="apps-search" placeholder="Search company or role..." oninput="renderApps()">
+          <select id="apps-filter-status" onchange="renderApps()">
+            <option value="">All statuses</option>
+            <option value="not_applied">Not applied</option>
+            <option value="applied">Applied</option>
+            <option value="recruiter_screen">Recruiter screen</option>
+            <option value="hm_call">HM call</option>
+            <option value="onsite">Onsite</option>
+            <option value="offer">Offer</option>
+            <option value="rejected">Rejected</option>
+          </select>
+        </div>
+        <div id="apps-table"></div>
+      </div>
+    </div>
+
+    <!-- JD PARSER -->
+    <div class="view" id="view-parser">
+      <div class="page-header">
+        <h2>Add Job.</h2>
+        <div class="date">Paste JD → parsed → tracked</div>
+      </div>
+      <div class="section">
+        <label>JD URL (optional)</label>
+        <input type="url" id="parser-url" placeholder="https://careers.company.com/jobs/12345">
+      </div>
+      <div class="parser-grid">
+        <div class="parser-input">
+          <label>Paste full JD text here ↓</label>
+          <textarea id="parser-text" placeholder="Paste the entire job description. Parser will extract company, title, location, requirements, salary, and flag any ITAR/citizenship requirements that block F1/OPT."></textarea>
+          <div class="flex gap mt-2">
+            <button class="primary" onclick="parseJD()">⚡ Parse JD</button>
+            <button onclick="clearParser()">Clear</button>
+          </div>
+        </div>
+        <div class="parser-output" id="parser-output">
+          <div class="empty">
+            <div class="big">⊕</div>
+            <h4>Paste a JD, hit Parse</h4>
+            <div>Extracted fields appear here, then save to tracker.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONNECTIONS -->
+    <div class="view" id="view-connections">
+      <div class="page-header">
+        <h2>Connections.</h2>
+        <div class="flex gap">
+          <button onclick="document.getElementById('csv-input').click()">⬆ Upload LinkedIn CSV</button>
+          <input type="file" id="csv-input" accept=".csv" style="display:none" onchange="handleCSVUpload(event)">
+          <button class="primary" onclick="openConnectionModal()">+ Add Contact</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <div class="table-controls">
+          <input type="text" id="conn-search" placeholder="Search name, company, role..." oninput="renderConnections()">
+          <select id="conn-filter-tier" onchange="renderConnections()">
+            <option value="">All tiers</option>
+            <option value="A">Tier A — outreach now</option>
+            <option value="B">Tier B — adjacent</option>
+            <option value="C">Tier C — bridges</option>
+            <option value="D">Tier D — park</option>
+          </select>
+          <select id="conn-filter-status" onchange="renderConnections()">
+            <option value="">All statuses</option>
+            <option value="identified">Identified</option>
+            <option value="request_sent">Request sent</option>
+            <option value="connected">Connected</option>
+            <option value="chat_scheduled">Chat scheduled</option>
+            <option value="chat_done">Chat done</option>
+            <option value="referred">Referred</option>
+            <option value="nurture">Nurture</option>
+          </select>
+        </div>
+        <div id="conn-table"></div>
+      </div>
+    </div>
+
+    <!-- TEMPLATES -->
+    <div class="view" id="view-templates">
+      <div class="page-header">
+        <h2>Message Templates.</h2>
+        <div class="date">copy → personalize → send</div>
+      </div>
+      <div id="templates-list"></div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="view" id="view-settings">
+      <div class="page-header"><h2>Settings.</h2></div>
+      <div class="section">
+        <h3>Your profile (used in message templates)</h3>
+        <div class="form-grid">
+          <div class="field full"><label>Your name</label><input type="text" id="set-name" onchange="saveSettings()"></div>
+          <div class="field"><label>Your school/program</label><input type="text" id="set-school" placeholder="University of Michigan, M.S. Aerospace" onchange="saveSettings()"></div>
+          <div class="field"><label>Your focus area</label><input type="text" id="set-focus" placeholder="CFD & data-driven methods" onchange="saveSettings()"></div>
+          <div class="field full"><label>One-line elevator pitch</label><input type="text" id="set-pitch" onchange="saveSettings()"></div>
+        </div>
+      </div>
+      <div class="section">
+        <h3>Target companies (auto-tier on import)</h3>
+        <label>Comma-separated company names you're targeting</label>
+        <textarea id="set-targets" onchange="saveSettings()" style="min-height: 100px"></textarea>
+        <div style="font-size:12px;color:var(--text-dim);margin-top:6px">Connections at these companies will auto-tag as Tier A.</div>
+      </div>
+      <div class="section">
+        <h3>Data</h3>
+        <div class="flex gap" style="flex-wrap:wrap">
+          <button onclick="exportData()">⬇ Export all (JSON backup)</button>
+          <button onclick="document.getElementById('import-input').click()">⬆ Import JSON</button>
+          <input type="file" id="import-input" accept=".json" style="display:none" onchange="importData(event)">
+          <button onclick="logout()">⟲ Switch token / log out</button>
+          <button class="danger" onclick="confirmWipe()">⌫ Wipe all cloud data</button>
+        </div>
+      </div>
+      <div class="section">
+        <h3>About</h3>
+        <div style="font-size:12px;color:var(--text-dim);line-height:1.6">
+          v2.0 — Cloud sync via Supabase. Your data lives in your private Supabase database, protected by row-level security on your token.<br>
+          This device's token is stored in localStorage. To remove it, use "Switch token / log out" above.<br>
+          PWA: install on phone via "Add to Home Screen". Works offline (reads cached data; writes queue and sync on reconnect).
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ===== MODALS ===== -->
+<div class="modal-overlay" id="modal-app">
+  <div class="modal">
+    <h3 id="modal-app-title">Add Application</h3>
+    <div class="modal-sub">Track this job through the pipeline.</div>
+    <div class="form-grid">
+      <div class="field"><label>Company</label><input type="text" id="app-company"></div>
+      <div class="field"><label>Role</label><input type="text" id="app-role"></div>
+      <div class="field"><label>Location</label><input type="text" id="app-location"></div>
+      <div class="field"><label>Salary / Comp</label><input type="text" id="app-salary"></div>
+      <div class="field full"><label>JD URL</label><input type="url" id="app-url"></div>
+      <div class="field"><label>Status</label>
+        <select id="app-status">
+          <option value="not_applied">Not applied yet</option>
+          <option value="applied">Applied</option>
+          <option value="recruiter_screen">Recruiter screen</option>
+          <option value="hm_call">HM call</option>
+          <option value="onsite">Onsite</option>
+          <option value="offer">Offer</option>
+          <option value="rejected">Rejected</option>
+          <option value="archived">Archived</option>
+        </select>
+      </div>
+      <div class="field"><label>Applied date</label><input type="date" id="app-date"></div>
+      <div class="field full"><label>Referrer (connection name)</label><input type="text" id="app-referrer" list="connection-list"><datalist id="connection-list"></datalist></div>
+      <div class="field full"><label>Key requirements / notes</label><textarea id="app-notes" style="min-height:80px"></textarea></div>
+    </div>
+    <div class="modal-actions">
+      <button class="ghost" onclick="closeModal('modal-app')">Cancel</button>
+      <button class="danger" id="app-delete-btn" onclick="deleteApp()" style="display:none">Delete</button>
+      <button class="primary" onclick="saveApp()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-conn">
+  <div class="modal">
+    <h3 id="modal-conn-title">Add Connection</h3>
+    <div class="modal-sub">A human, not a job board.</div>
+    <div class="form-grid">
+      <div class="field"><label>Name</label><input type="text" id="conn-name"></div>
+      <div class="field"><label>Company</label><input type="text" id="conn-company"></div>
+      <div class="field full"><label>Role / Position</label><input type="text" id="conn-role"></div>
+      <div class="field full"><label>LinkedIn URL</label><input type="url" id="conn-url"></div>
+      <div class="field"><label>Tier</label>
+        <select id="conn-tier">
+          <option value="A">A — outreach now</option>
+          <option value="B">B — adjacent</option>
+          <option value="C">C — bridge</option>
+          <option value="D">D — park</option>
+        </select>
+      </div>
+      <div class="field"><label>Status</label>
+        <select id="conn-status">
+          <option value="identified">Identified</option>
+          <option value="request_sent">Request sent</option>
+          <option value="connected">Connected</option>
+          <option value="chat_scheduled">Chat scheduled</option>
+          <option value="chat_done">Chat done</option>
+          <option value="referred">Referred</option>
+          <option value="nurture">Nurture</option>
+        </select>
+      </div>
+      <div class="field full"><label>Notes</label><textarea id="conn-notes" style="min-height:80px"></textarea></div>
+    </div>
+    <div class="modal-actions">
+      <button class="ghost" onclick="closeModal('modal-conn')">Cancel</button>
+      <button class="danger" id="conn-delete-btn" onclick="deleteConn()" style="display:none">Delete</button>
+      <button class="primary" onclick="saveConn()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-message">
+  <div class="modal">
+    <h3>Personalized Message</h3>
+    <div class="modal-sub" id="msg-target"></div>
+    <div class="form-grid">
+      <div class="field full">
+        <label>Message (copy + personalize the brackets)</label>
+        <textarea id="msg-body" style="min-height:240px"></textarea>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="ghost" onclick="closeModal('modal-message')">Close</button>
+      <button class="primary" onclick="copyMessage()">⎘ Copy to clipboard</button>
+      <button onclick="markMessageSent()">✓ Mark as sent</button>
+    </div>
+  </div>
+</div>
+
+<!-- Supabase JS SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+
+<!-- PWA service worker registration -->
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js').catch(e => console.warn('SW register failed:', e));
+  });
+}
+</script>
+</body>
+</html>
