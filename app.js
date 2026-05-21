@@ -11,6 +11,7 @@ let userToken = null;
 let state = {
   apps: [],
   conns: [],
+  feed: [],
   settings: { name: '', school: '', focus: '', pitch: '', targets: '', daily_apps_goal: 25, daily_messages_goal: 10 }
 };
 let pendingResume = null; // {file_path, file_name} between upload and save
@@ -180,14 +181,16 @@ async function fetchAllRows(table, orderCol, ascending = true) {
 async function loadAll() {
   setSyncState('syncing');
   try {
-    const [apps, conns, settingsRow] = await Promise.all([
+    const [apps, conns, feed, settingsRow] = await Promise.all([
       fetchAllRows('applications', 'created_at', false),
       fetchAllRows('connections', 'name', true),
+      fetchAllRows('jobs_feed', 'posted_at', false).catch(() => []),  // graceful if table not migrated yet
       supabase.from('settings').select('*').eq('owner_token', userToken).maybeSingle()
     ]);
     if (settingsRow.error && settingsRow.error.code !== 'PGRST116') throw settingsRow.error;
     state.apps = apps;
     state.conns = conns;
+    state.feed = feed;
     if (settingsRow.data) state.settings = settingsRow.data;
     setSyncState('online');
   } catch (e) {
@@ -274,6 +277,202 @@ function computeNextAction(item, type) {
 }
 
 // ============ DASHBOARD ============
+// ============ JOBS FEED ============
+function relativeTimeSince(iso) {
+  if (!iso) return 'unknown';
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
+function feedFreshness() {
+  if (!state.feed.length) return null;
+  const newest = state.feed.reduce((max, j) => {
+    const t = new Date(j.fetched_at || j.posted_at || 0).getTime();
+    return t > max ? t : max;
+  }, 0);
+  return newest;
+}
+
+function jobsConnSummary(company) {
+  if (!company) return { conns: [], alumCount: 0, total: 0 };
+  const cl = company.toLowerCase().trim();
+  const userSchool = state.settings.school || '';
+  const matches = state.conns.filter(c => {
+    const cc = (c.company || '').toLowerCase();
+    return cc && (cc.includes(cl) || cl.includes(cc));
+  });
+  const alumCount = matches.filter(c => isAlumOf(c.school, userSchool)).length;
+  return { conns: matches, alumCount, total: matches.length };
+}
+
+function isAppAlreadyTracked(job) {
+  // Detect by URL match first, then fall back to company+title
+  return state.apps.some(a =>
+    (a.jd_url && a.jd_url === job.url) ||
+    ((a.company || '').toLowerCase() === (job.company || '').toLowerCase() &&
+     (a.role || '').toLowerCase() === (job.title || '').toLowerCase())
+  );
+}
+
+function renderJobsFeed() {
+  const card = document.getElementById('feed-card');
+  if (!card) return;
+
+  // Filter to visible (non-dismissed) jobs in last 14 days
+  const visible = state.feed.filter(j => !j.dismissed);
+
+  if (visible.length === 0) {
+    card.innerHTML = `
+      <div class="feed-head">
+        <h3>Fresh jobs <span class="feed-since">— last 24h</span></h3>
+      </div>
+      <div class="feed-empty">
+        <div>📭 No jobs in the feed yet.</div>
+        <div class="feed-empty-sub">The daily cron runs at 13:00 UTC. To trigger now, push to your repo and run the <strong>Daily Jobs Fetch</strong> workflow manually in GitHub Actions. See README for setup.</div>
+      </div>
+    `;
+    return;
+  }
+
+  const sort = document.getElementById('feed-sort')?.value || 'relevance';
+  const filter = document.getElementById('feed-filter')?.value || 'all';
+
+  const userSchool = state.settings.school || '';
+
+  let filtered = visible;
+  if (filter === 'greenhouse' || filter === 'lever' || filter === 'jsearch') {
+    filtered = visible.filter(j => j.source === filter);
+  } else if (filter === 'alum') {
+    filtered = visible.filter(j => {
+      const s = jobsConnSummary(j.company);
+      return s.alumCount > 0;
+    });
+  } else if (filter === 'conn') {
+    filtered = visible.filter(j => jobsConnSummary(j.company).total > 0);
+  }
+
+  if (sort === 'posted_at') {
+    filtered = filtered.slice().sort((a, b) => (b.posted_at || '').localeCompare(a.posted_at || ''));
+  } else if (sort === 'company') {
+    filtered = filtered.slice().sort((a, b) => (a.company || '').localeCompare(b.company || ''));
+  } else { // relevance
+    filtered = filtered.slice().sort((a, b) => (b.relevance_score || 0) - (a.relevance_score || 0));
+  }
+
+  // Header + controls (preserve from initial HTML)
+  const newest = feedFreshness();
+  const sinceLabel = newest ? `· updated ${relativeTimeSince(new Date(newest).toISOString())}` : '';
+
+  const headerHtml = `
+    <div class="feed-head">
+      <h3>Fresh jobs <span class="feed-since">— ${filtered.length} listings ${sinceLabel}</span></h3>
+      <div class="feed-controls">
+        <select id="feed-sort" onchange="renderJobsFeed()">
+          <option value="relevance" ${sort==='relevance'?'selected':''}>Sort: relevance</option>
+          <option value="posted_at" ${sort==='posted_at'?'selected':''}>Sort: most recent</option>
+          <option value="company" ${sort==='company'?'selected':''}>Sort: company</option>
+        </select>
+        <select id="feed-filter" onchange="renderJobsFeed()">
+          <option value="all" ${filter==='all'?'selected':''}>All sources</option>
+          <option value="greenhouse" ${filter==='greenhouse'?'selected':''}>Greenhouse only</option>
+          <option value="lever" ${filter==='lever'?'selected':''}>Lever only</option>
+          <option value="jsearch" ${filter==='jsearch'?'selected':''}>JSearch only</option>
+          <option value="alum" ${filter==='alum'?'selected':''}>Has alum at company</option>
+          <option value="conn" ${filter==='conn'?'selected':''}>Has any connection</option>
+        </select>
+      </div>
+    </div>`;
+
+  const items = filtered.slice(0, 30).map(j => {
+    const summary = jobsConnSummary(j.company);
+    const tracked = isAppAlreadyTracked(j);
+    const scoreClass = (j.relevance_score || 0) >= 8 ? 'high' : (j.relevance_score || 0) >= 4 ? 'mid' : 'low';
+    const connsLine = summary.total > 0
+      ? `<div class="job-conns">
+          ${summary.alumCount > 0 ? `<span class="alum-badge">🎓 ${summary.alumCount} alum${summary.alumCount > 1 ? 's' : ''}</span>` : ''}
+          <span class="job-conn-count">👥 ${summary.total} connection${summary.total > 1 ? 's' : ''} at ${escapeHTML(j.company)}</span>
+          <div class="job-conn-names">${summary.conns.slice(0, 3).map(c => escapeHTML(c.name)).join(', ')}${summary.conns.length > 3 ? ` +${summary.conns.length - 3} more` : ''}</div>
+        </div>`
+      : `<div class="job-conns no-conns">No connections at ${escapeHTML(j.company)}</div>`;
+    return `
+      <div class="job-card">
+        <div class="job-card-main">
+          <div class="job-card-head">
+            <div class="job-title-row">
+              <strong>${escapeHTML(j.title || '')}</strong>
+              <span class="score-badge ${scoreClass}" title="Keyword match against your resume">${j.relevance_score || 0}</span>
+            </div>
+            <div class="job-meta">
+              <span>${escapeHTML(j.company || '')}</span>
+              ${j.location ? `<span class="dot">·</span><span>${escapeHTML(j.location)}</span>` : ''}
+              <span class="dot">·</span><span class="job-source">${escapeHTML(j.source || '')}</span>
+              <span class="dot">·</span><span class="job-time">${relativeTimeSince(j.posted_at)}</span>
+            </div>
+          </div>
+          ${connsLine}
+        </div>
+        <div class="job-card-actions">
+          <a class="link-btn" href="${escapeHTML(j.url)}" target="_blank" rel="noopener">↗ Open JD</a>
+          ${tracked
+            ? `<button disabled title="Already in your applications">✓ Tracked</button>`
+            : `<button class="primary" onclick="trackJobFromFeed('${j.id}')">+ Track</button>`}
+          <button class="ghost" onclick="dismissJob('${j.id}')" title="Hide from feed">✕</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  card.innerHTML = headerHtml + `<div id="feed-list">${items}</div>`;
+}
+
+async function trackJobFromFeed(jobId) {
+  const j = state.feed.find(x => x.id === jobId);
+  if (!j) return;
+  setSyncState('syncing');
+  try {
+    const row = {
+      owner_token: userToken,
+      company: j.company,
+      role: j.title,
+      location: j.location || '',
+      jd_url: j.url,
+      status: 'not_applied',
+      notes: (j.description || '').slice(0, 1000),
+      timeline: [{ date: today(), type: 'created', label: `Job added from daily feed (${j.source})` }]
+    };
+    const { data: inserted, error } = await supabase.from('applications').insert(row).select().single();
+    if (error) throw error;
+    state.apps.unshift(inserted);
+    setSyncState('online');
+    toast(`Tracking ${j.title} at ${j.company}.`, 'success');
+    renderJobsFeed();
+    renderDashboard();
+  } catch (e) {
+    setSyncState('error');
+    toast('Track failed: ' + e.message, 'error');
+  }
+}
+
+async function dismissJob(jobId) {
+  const j = state.feed.find(x => x.id === jobId);
+  if (!j) return;
+  j.dismissed = true;
+  renderJobsFeed();
+  try {
+    await supabase.from('jobs_feed').update({ dismissed: true }).eq('id', jobId);
+  } catch (e) {
+    j.dismissed = false;
+    renderJobsFeed();
+    toast('Dismiss failed: ' + e.message, 'error');
+  }
+}
+
 // ============ DAILY ACCOUNTABILITY ============
 const APP_STATUS_FLOW = ['not_applied', 'applied', 'recruiter_screen', 'hm_call', 'onsite', 'offer'];
 
@@ -387,6 +586,7 @@ function renderDailyAccountability() {
 // ============ DASHBOARD ============
 function renderDashboard() {
   document.getElementById('today-date').textContent = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  renderJobsFeed();
   renderDailyAccountability();
   const active = state.apps.filter(a => !['rejected', 'archived'].includes(a.status)).length;
   const interviews = state.apps.filter(a => ['recruiter_screen','hm_call','onsite'].includes(a.status)).length;
@@ -1733,6 +1933,12 @@ function loadSettingsForm() {
   const msgGoal = document.getElementById('set-msg-goal');
   if (appsGoal) appsGoal.value = state.settings.daily_apps_goal ?? 25;
   if (msgGoal) msgGoal.value = state.settings.daily_messages_goal ?? 10;
+  const resumeEl = document.getElementById('set-resume-text');
+  const queriesEl = document.getElementById('set-jsearch-queries');
+  const slugsEl = document.getElementById('set-ats-slugs');
+  if (resumeEl) resumeEl.value = state.settings.resume_text || '';
+  if (queriesEl) queriesEl.value = state.settings.jsearch_queries || '';
+  if (slugsEl) slugsEl.value = state.settings.ats_slugs || '';
 }
 
 let settingsSaveTimer = null;
@@ -1742,6 +1948,9 @@ async function saveSettings() {
     const appsGoalEl = document.getElementById('set-apps-goal');
     const msgGoalEl = document.getElementById('set-msg-goal');
     const ssEl = document.getElementById('set-school-short');
+    const resumeEl = document.getElementById('set-resume-text');
+    const queriesEl = document.getElementById('set-jsearch-queries');
+    const slugsEl = document.getElementById('set-ats-slugs');
     const schoolFull = document.getElementById('set-school').value;
     const data = {
       owner_token: userToken,
@@ -1752,7 +1961,10 @@ async function saveSettings() {
       pitch: document.getElementById('set-pitch').value,
       targets: document.getElementById('set-targets').value,
       daily_apps_goal: appsGoalEl ? (parseInt(appsGoalEl.value, 10) || 0) : (state.settings.daily_apps_goal ?? 25),
-      daily_messages_goal: msgGoalEl ? (parseInt(msgGoalEl.value, 10) || 0) : (state.settings.daily_messages_goal ?? 10)
+      daily_messages_goal: msgGoalEl ? (parseInt(msgGoalEl.value, 10) || 0) : (state.settings.daily_messages_goal ?? 10),
+      resume_text: resumeEl ? resumeEl.value : (state.settings.resume_text || ''),
+      jsearch_queries: queriesEl ? queriesEl.value : (state.settings.jsearch_queries || ''),
+      ats_slugs: slugsEl ? slugsEl.value : (state.settings.ats_slugs || '')
     };
     setSyncState('syncing');
     try {
