@@ -606,11 +606,18 @@ function suggestionsForCompany(company) {
   if (!company) return [];
   const cl = company.toLowerCase().trim();
   if (cl.length < 2) return [];
+  const userSchool = state.settings.school || '';
   return state.conns.filter(c => {
     const cc = (c.company || '').toLowerCase();
     if (!cc) return false;
     return cc.includes(cl) || cl.includes(cc);
-  }).sort((a, b) => (a.tier || 'Z').localeCompare(b.tier || 'Z')).slice(0, 5);
+  }).sort((a, b) => {
+    // Alums first, then by tier
+    const aAlum = isAlumOf(a.school, userSchool) ? 0 : 1;
+    const bAlum = isAlumOf(b.school, userSchool) ? 0 : 1;
+    if (aAlum !== bAlum) return aAlum - bAlum;
+    return (a.tier || 'Z').localeCompare(b.tier || 'Z');
+  }).slice(0, 5);
 }
 
 function updateContactSuggestion() {
@@ -618,14 +625,18 @@ function updateContactSuggestion() {
   const banner = document.getElementById('app-suggest');
   const suggestions = suggestionsForCompany(company);
   if (suggestions.length === 0) { banner.style.display = 'none'; return; }
+  const userSchool = state.settings.school || '';
   banner.style.display = '';
   banner.innerHTML = `
     <div class="suggest-head">💡 You know ${suggestions.length} ${suggestions.length === 1 ? 'person' : 'people'} at ${escapeHTML(company)}:</div>
     <div class="suggest-list">
-      ${suggestions.map(c => `
+      ${suggestions.map(c => {
+        const alum = isAlumOf(c.school, userSchool);
+        return `
         <div class="suggest-row">
           <div>
             <span class="pill tier-${c.tier || 'D'}">Tier ${c.tier || 'D'}</span>
+            ${alum ? `<span class="alum-badge" title="Fellow alum">🎓 alum</span>` : ''}
             <strong>${escapeHTML(c.name)}</strong>
             <span class="suggest-role">${escapeHTML(c.role || '')}</span>
           </div>
@@ -634,7 +645,8 @@ function updateContactSuggestion() {
             <button class="primary" onclick="openMessageFor('conn','${c.id}')">✎ Draft message</button>
           </div>
         </div>
-      `).join('')}
+        `;
+      }).join('')}
     </div>
   `;
 }
@@ -1009,23 +1021,46 @@ function renderConnections() {
   const search = (document.getElementById('conn-search')?.value || '').toLowerCase();
   const tier = document.getElementById('conn-filter-tier')?.value || '';
   const status = document.getElementById('conn-filter-status')?.value || '';
+  const alumFilter = document.getElementById('conn-filter-alum')?.value || '';
+  const userSchool = state.settings.school || '';
   const filtered = state.conns.filter(c => {
     const matchS = !search || ((c.name || '') + ' ' + (c.company || '') + ' ' + (c.role || '')).toLowerCase().includes(search);
     const matchT = !tier || c.tier === tier;
     const matchSt = !status || c.status === status;
-    return matchS && matchT && matchSt;
-  }).sort((a, b) => (a.tier || 'Z').localeCompare(b.tier || 'Z'));
+    let matchA = true;
+    if (alumFilter === 'alum') matchA = isAlumOf(c.school, userSchool);
+    else if (alumFilter === 'no_school') matchA = !c.school;
+    return matchS && matchT && matchSt && matchA;
+  }).sort((a, b) => {
+    // Alums first within same tier
+    const tierCmp = (a.tier || 'Z').localeCompare(b.tier || 'Z');
+    if (tierCmp !== 0) return tierCmp;
+    const aAlum = isAlumOf(a.school, userSchool) ? 0 : 1;
+    const bAlum = isAlumOf(b.school, userSchool) ? 0 : 1;
+    return aAlum - bAlum;
+  });
 
   if (filtered.length === 0) {
-    document.getElementById('conn-table').innerHTML = `<div class="empty"><div class="big">◉</div><h4>No connections yet</h4><div>Upload your LinkedIn CSV or add contacts manually.</div></div>`;
+    document.getElementById('conn-table').innerHTML = `<div class="empty"><div class="big">◉</div><h4>No connections match</h4><div>Try clearing filters, uploading your LinkedIn CSV, or adding contacts manually.</div></div>`;
     return;
   }
+
+  const alumBadge = (c) => isAlumOf(c.school, userSchool)
+    ? `<span class="alum-badge" title="Fellow ${deriveSchoolShort(userSchool) || 'school'} alum">🎓 alum</span>`
+    : '';
+
+  const totalAlums = state.conns.filter(c => isAlumOf(c.school, userSchool)).length;
+  const totalNoSchool = state.conns.filter(c => !c.school).length;
+  const statsBar = userSchool
+    ? `<div class="conn-stats">Showing <strong>${filtered.length}</strong> of <strong>${state.conns.length}</strong> connections · <strong>${totalAlums}</strong> alums · <strong>${totalNoSchool}</strong> missing school</div>`
+    : `<div class="conn-stats setup-note" style="margin:0 0 12px 0">Set your school in Settings to enable alum detection across ${state.conns.length} connections.</div>`;
+
   const rows = filtered.map(c => {
     const n = computeNextAction(c, 'conn');
     const overdue = n.date && n.date < today();
     const linkBtn = c.linkedin_url ? `<a class="link-btn" href="${escapeHTML(c.linkedin_url)}" target="_blank" rel="noopener" title="Open LinkedIn">↗ in</a>` : '';
     return `<tr>
-      <td><div class="row-name">${escapeHTML(c.name || '—')}</div></td>
+      <td><div class="row-name">${escapeHTML(c.name || '—')} ${alumBadge(c)}</div>${c.school ? `<div class="row-sub">${escapeHTML(c.school)}</div>` : ''}</td>
       <td><div>${escapeHTML(c.company || '—')}</div><div class="row-sub">${escapeHTML(c.role || '')}</div></td>
       <td><span class="pill tier-${c.tier || 'D'}">Tier ${c.tier || 'D'}</span></td>
       <td><span class="pill">${(c.status || 'identified').replace(/_/g, ' ')}</span></td>
@@ -1045,8 +1080,9 @@ function renderConnections() {
     return `<div class="list-card">
       <div class="list-card-head">
         <div>
-          <div class="list-card-title">${escapeHTML(c.name || '—')}</div>
+          <div class="list-card-title">${escapeHTML(c.name || '—')} ${alumBadge(c)}</div>
           <div class="list-card-sub">${escapeHTML(c.company || '')}${c.role ? ' — ' + escapeHTML(c.role) : ''}</div>
+          ${c.school ? `<div class="list-card-sub" style="font-size:11px;color:var(--text-faint)">🎓 ${escapeHTML(c.school)}</div>` : ''}
         </div>
         <span class="pill tier-${c.tier || 'D'}">Tier ${c.tier || 'D'}</span>
       </div>
@@ -1062,12 +1098,149 @@ function renderConnections() {
     </div>`;
   }).join('');
 
-  document.getElementById('conn-table').innerHTML = `
+  document.getElementById('conn-table').innerHTML = statsBar + `
     <div class="table-scroll desktop-only"><table>
       <thead><tr><th>Name</th><th>Company / Role</th><th>Tier</th><th>Status</th><th>Next action</th><th></th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>
     <div class="list-cards mobile-only">${cards}</div>`;
+}
+
+// ============ BULK SCHOOL FILL ============
+// Pasted names → fuzzy-match against state.conns → bulk-set school.
+// Robust to LinkedIn paste-dumps (mixed name / role / location lines).
+
+function normalizeForMatch(s) {
+  let n = (s || '').toLowerCase();
+  n = n.replace(/\b(mr|mrs|ms|dr|prof|sir|hon)\.?\b/g, '');
+  n = n.replace(/[,].*$/, ''); // strip trailing ", PhD" / ", MS" suffix
+  n = n.replace(/[^a-z\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  return n;
+}
+function firstLastKey(name) {
+  const tokens = normalizeForMatch(name).split(' ').filter(Boolean);
+  if (tokens.length === 0) return '';
+  if (tokens.length === 1) return tokens[0];
+  return tokens[0] + '|' + tokens[tokens.length - 1];
+}
+function extractNamesFromPaste(text) {
+  const lines = (text || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const seen = new Set();
+  const names = [];
+  const looksLikeName = (s) => {
+    if (s.length < 3 || s.length > 60) return false;
+    // Reject lines that look like roles / locations / metadata
+    if (/(\bat\b|•|·|—|–|\(|\)|@|https?:|view profile|connect|message|followers?|connections?|mutual|degree|verified)/i.test(s)) return false;
+    if (/\d/.test(s)) return false;
+    const words = s.split(/\s+/);
+    if (words.length < 2 || words.length > 5) return false;
+    // Most words must start with a capital letter
+    const capCount = words.filter(w => /^[A-Z]/.test(w)).length;
+    return capCount >= Math.ceil(words.length * 0.8);
+  };
+  for (const line of lines) {
+    if (looksLikeName(line)) {
+      const k = firstLastKey(line);
+      if (k && !seen.has(k)) { seen.add(k); names.push(line); }
+    }
+  }
+  return names;
+}
+
+let bulkSchoolMatched = []; // ids of connections to update
+
+function openBulkSchoolModal() {
+  document.getElementById('bulk-school-value').value = state.settings.school || '';
+  document.getElementById('bulk-school-names').value = '';
+  document.getElementById('bulk-school-preview').innerHTML = '';
+  document.getElementById('bulk-school-apply').disabled = true;
+  bulkSchoolMatched = [];
+  document.getElementById('modal-bulk-school').classList.add('active');
+}
+
+function previewBulkSchool() {
+  const schoolVal = document.getElementById('bulk-school-value').value.trim();
+  const text = document.getElementById('bulk-school-names').value;
+  const preview = document.getElementById('bulk-school-preview');
+  if (!schoolVal) { preview.innerHTML = `<div class="bulk-error">Enter a school value first.</div>`; return; }
+  const names = extractNamesFromPaste(text);
+  if (names.length === 0) { preview.innerHTML = `<div class="bulk-error">No names detected. Paste names one per line, or a chunk of LinkedIn search results.</div>`; return; }
+
+  // Build lookup of existing connections by firstLastKey
+  const lookup = new Map();
+  for (const c of state.conns) {
+    const k = firstLastKey(c.name || '');
+    if (!k) continue;
+    if (!lookup.has(k)) lookup.set(k, []);
+    lookup.get(k).push(c);
+  }
+
+  const matched = [];
+  const ambiguous = [];
+  const unmatched = [];
+  const alreadySet = [];
+  for (const name of names) {
+    const k = firstLastKey(name);
+    const hits = lookup.get(k) || [];
+    if (hits.length === 0) { unmatched.push(name); continue; }
+    if (hits.length > 1) {
+      ambiguous.push({ name, hits });
+      for (const h of hits) matched.push(h);
+      continue;
+    }
+    const c = hits[0];
+    if ((c.school || '').toLowerCase() === schoolVal.toLowerCase()) alreadySet.push(c);
+    else matched.push(c);
+  }
+
+  // Dedupe matched by id
+  const seenIds = new Set();
+  bulkSchoolMatched = matched.filter(c => { if (seenIds.has(c.id)) return false; seenIds.add(c.id); return true; }).map(c => c.id);
+
+  const sampleMatched = matched.slice(0, 8).map(c => `<li>${escapeHTML(c.name)} <span style="color:var(--text-dim)">— ${escapeHTML(c.company || 'no company')}${c.school ? `, was: <em>${escapeHTML(c.school)}</em>` : ''}</span></li>`).join('');
+  const sampleUnmatched = unmatched.slice(0, 8).map(n => `<li>${escapeHTML(n)}</li>`).join('');
+  const ambNote = ambiguous.length ? `<div class="bulk-warn">⚠ ${ambiguous.length} name(s) matched multiple connections — they'll all be updated. Verify after.</div>` : '';
+
+  preview.innerHTML = `
+    <div class="bulk-summary">
+      <div><strong>${names.length}</strong> names parsed from paste</div>
+      <div><strong style="color:var(--green)">${bulkSchoolMatched.length}</strong> will be updated to <strong>${escapeHTML(schoolVal)}</strong></div>
+      ${alreadySet.length ? `<div><strong style="color:var(--text-dim)">${alreadySet.length}</strong> already had this school</div>` : ''}
+      <div><strong style="color:${unmatched.length ? 'var(--red)' : 'var(--text-dim)'}">${unmatched.length}</strong> not found in your connections</div>
+    </div>
+    ${ambNote}
+    ${bulkSchoolMatched.length ? `<details open><summary>Will update (${bulkSchoolMatched.length}, showing up to 8)</summary><ul class="bulk-list">${sampleMatched}${matched.length > 8 ? `<li>… and ${matched.length - 8} more</li>` : ''}</ul></details>` : ''}
+    ${unmatched.length ? `<details><summary>Not matched (${unmatched.length}, showing up to 8)</summary><ul class="bulk-list">${sampleUnmatched}${unmatched.length > 8 ? `<li>… and ${unmatched.length - 8} more</li>` : ''}</ul><div class="bulk-hint">These are people you haven't added to the tracker yet — they're skipped, not deleted.</div></details>` : ''}
+  `;
+  document.getElementById('bulk-school-apply').disabled = bulkSchoolMatched.length === 0;
+}
+
+async function applyBulkSchool() {
+  const schoolVal = document.getElementById('bulk-school-value').value.trim();
+  if (!schoolVal || bulkSchoolMatched.length === 0) return;
+  const btn = document.getElementById('bulk-school-apply');
+  btn.disabled = true; btn.textContent = 'Applying...';
+  setSyncState('syncing');
+  try {
+    // Chunk updates by 200 ids to keep request size reasonable
+    for (let i = 0; i < bulkSchoolMatched.length; i += 200) {
+      const chunk = bulkSchoolMatched.slice(i, i + 200);
+      const { error } = await supabase.from('connections').update({ school: schoolVal }).in('id', chunk);
+      if (error) throw error;
+    }
+    // Update local state
+    const set = new Set(bulkSchoolMatched);
+    state.conns.forEach(c => { if (set.has(c.id)) c.school = schoolVal; });
+    setSyncState('online');
+    closeModal('modal-bulk-school');
+    toast(`Updated school on ${bulkSchoolMatched.length} connections.`, 'success');
+    renderConnections();
+    renderDashboard();
+  } catch (e) {
+    setSyncState('error');
+    btn.disabled = false; btn.textContent = 'Apply to matched';
+    toast('Bulk update failed: ' + e.message, 'error');
+  }
 }
 
 function openConnectionModal(id) {

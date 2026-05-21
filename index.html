@@ -211,6 +211,7 @@
         <div class="flex gap">
           <button onclick="document.getElementById('csv-input').click()">⬆ Upload LinkedIn CSV</button>
           <input type="file" id="csv-input" accept=".csv" style="display:none" onchange="handleCSVUpload(event)">
+          <button onclick="openBulkSchoolModal()">🎓 Bulk fill school</button>
           <button class="primary" onclick="openConnectionModal()">+ Add Contact</button>
         </div>
       </div>
@@ -233,6 +234,11 @@
             <option value="chat_done">Chat done</option>
             <option value="referred">Referred</option>
             <option value="nurture">Nurture</option>
+          </select>
+          <select id="conn-filter-alum" onchange="renderConnections()">
+            <option value="">All connections</option>
+            <option value="alum">🎓 Alumni only</option>
+            <option value="no_school">⚠ Missing school</option>
           </select>
         </div>
         <div id="conn-table"></div>
@@ -397,6 +403,48 @@
       <button class="ghost" onclick="closeModal('modal-conn')">Cancel</button>
       <button class="danger" id="conn-delete-btn" onclick="deleteConn()" style="display:none">Delete</button>
       <button class="primary" onclick="saveConn()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-bulk-school">
+  <div class="modal">
+    <h3>Bulk fill school for connections</h3>
+    <div class="modal-sub">Fastest way: on LinkedIn → My Network → Connections → filter by School → select all visible text (⌘A) → copy → paste here.</div>
+
+    <div class="form-grid">
+      <div class="field">
+        <label>School value to assign</label>
+        <input type="text" id="bulk-school-value" placeholder="e.g. University of Michigan">
+      </div>
+      <div class="field">
+        <label>Or pick a known short name</label>
+        <select id="bulk-school-preset" onchange="if(this.value){document.getElementById('bulk-school-value').value=this.value;}">
+          <option value="">— Choose —</option>
+          <option value="University of Michigan">University of Michigan</option>
+          <option value="MIT">MIT</option>
+          <option value="Stanford University">Stanford</option>
+          <option value="UC Berkeley">UC Berkeley</option>
+          <option value="Carnegie Mellon University">CMU</option>
+          <option value="Harvard University">Harvard</option>
+          <option value="Georgia Institute of Technology">Georgia Tech</option>
+          <option value="University of Illinois Urbana-Champaign">UIUC</option>
+          <option value="Purdue University">Purdue</option>
+          <option value="University of Texas at Austin">UT Austin</option>
+        </select>
+      </div>
+      <div class="field full">
+        <label>Paste names (one per line) — OR paste a LinkedIn page and we'll extract names</label>
+        <textarea id="bulk-school-names" style="min-height:200px;font-family:'JetBrains Mono',monospace;font-size:13px" placeholder="Jane Patel&#10;John Smith&#10;Alice Chen&#10;&#10;OR paste the whole LinkedIn search results block — name extractor will find the names automatically."></textarea>
+      </div>
+    </div>
+
+    <div id="bulk-school-preview" class="bulk-preview"></div>
+
+    <div class="modal-actions">
+      <button class="ghost" onclick="closeModal('modal-bulk-school')">Cancel</button>
+      <button onclick="previewBulkSchool()">⌕ Preview matches</button>
+      <button class="primary" id="bulk-school-apply" onclick="applyBulkSchool()" disabled>Apply to matched</button>
     </div>
   </div>
 </div>
