@@ -172,6 +172,16 @@ Both devices read and write to the same Supabase database, so they stay in sync.
 
 ---
 
+## Upgrading from v2.0 → v2.2 (resumes, step tracker, daily goals)
+
+If you set up the tracker before this release, run the **v2.1 MIGRATION** block at the bottom of `supabase-schema.sql` once in your Supabase SQL Editor. It's idempotent (safe to run multiple times) and adds:
+
+- Resume file storage bucket (`resumes`) with token-scoped write policies
+- Per-application columns: `resume_url`, `resume_file_path`, `timeline` (jsonb event log)
+- Per-user settings: `daily_apps_goal`, `daily_messages_goal`
+
+If you skip this step, saving applications will fail with a "column does not exist" error.
+
 ## Updating the app
 
 Edit any file, push to your repo. GitHub Pages auto-deploys in ~1 min. The service worker will fetch the new version on next load.

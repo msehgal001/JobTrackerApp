@@ -11,8 +11,9 @@ let userToken = null;
 let state = {
   apps: [],
   conns: [],
-  settings: { name: '', school: '', focus: '', pitch: '', targets: '' }
+  settings: { name: '', school: '', focus: '', pitch: '', targets: '', daily_apps_goal: 25, daily_messages_goal: 10 }
 };
+let pendingResume = null; // {file_path, file_name} between upload and save
 let currentMessageContext = null;
 let syncState = 'idle'; // idle | syncing | online | error
 
@@ -51,7 +52,8 @@ function showSetup() {
 
 function showApp() {
   document.getElementById('setup-screen').style.display = 'none';
-  document.getElementById('app').style.display = 'grid';
+  // Clear inline display so CSS (block on mobile, grid on desktop) controls layout.
+  document.getElementById('app').style.display = '';
   loadSettingsForm();
   renderDashboard();
   setSyncState('online');
@@ -253,8 +255,120 @@ function computeNextAction(item, type) {
 }
 
 // ============ DASHBOARD ============
+// ============ DAILY ACCOUNTABILITY ============
+const APP_STATUS_FLOW = ['not_applied', 'applied', 'recruiter_screen', 'hm_call', 'onsite', 'offer'];
+
+function timelineEvents(app) {
+  // Always return an array, even if column is null/missing.
+  return Array.isArray(app && app.timeline) ? app.timeline : [];
+}
+
+function countAppsAppliedOn(date) {
+  // An app counts toward "applied today" if EITHER applied_date == today
+  // OR its timeline has an 'applied' event on today (so changing status
+  // to 'applied' fires the counter even without a date field).
+  return state.apps.filter(a => {
+    if (a.applied_date === date) return true;
+    return timelineEvents(a).some(e => e.type === 'applied' && e.date === date);
+  }).length;
+}
+
+function countMessagesSentOn(date) {
+  // Outreach counter: connections whose last_contact === today.
+  return state.conns.filter(c => c.last_contact === date).length;
+}
+
+function computeStreak() {
+  // Streak = consecutive prior days (incl. today) where you met EITHER goal
+  // (or did at least one of each kind of action if goals are 0).
+  const t = today();
+  const minApps = state.settings.daily_apps_goal || 0;
+  const minMsgs = state.settings.daily_messages_goal || 0;
+
+  // Build per-date counts from apps + conns
+  const dateCounts = {};
+  state.apps.forEach(a => {
+    timelineEvents(a).forEach(e => {
+      if (e.type === 'applied' && e.date) {
+        dateCounts[e.date] = dateCounts[e.date] || { apps: 0, msgs: 0 };
+        dateCounts[e.date].apps++;
+      }
+    });
+    if (a.applied_date) {
+      dateCounts[a.applied_date] = dateCounts[a.applied_date] || { apps: 0, msgs: 0 };
+      // Only count once; if timeline already has it, the above already counted it
+      const hasInTimeline = timelineEvents(a).some(e => e.type === 'applied' && e.date === a.applied_date);
+      if (!hasInTimeline) dateCounts[a.applied_date].apps++;
+    }
+  });
+  state.conns.forEach(c => {
+    if (c.last_contact) {
+      dateCounts[c.last_contact] = dateCounts[c.last_contact] || { apps: 0, msgs: 0 };
+      dateCounts[c.last_contact].msgs++;
+    }
+  });
+
+  // Walk back from today
+  let streak = 0;
+  for (let i = 0; i < 365; i++) {
+    const d = addDays(t, -i);
+    const c = dateCounts[d] || { apps: 0, msgs: 0 };
+    const metApps = minApps > 0 ? c.apps >= minApps : c.apps > 0;
+    const metMsgs = minMsgs > 0 ? c.msgs >= minMsgs : c.msgs > 0;
+    // Met the day if either goal hit (or, if both goals are 0, any activity)
+    const anyGoal = minApps > 0 || minMsgs > 0;
+    const metDay = anyGoal ? (metApps || metMsgs) : (c.apps > 0 || c.msgs > 0);
+    if (metDay) streak++;
+    else if (i === 0) break; // today not yet met → streak 0
+    else break;
+  }
+  return streak;
+}
+
+function renderDailyAccountability() {
+  const t = today();
+  const appsCount = countAppsAppliedOn(t);
+  const msgsCount = countMessagesSentOn(t);
+  const appsGoal = state.settings.daily_apps_goal ?? 25;
+  const msgsGoal = state.settings.daily_messages_goal ?? 10;
+  const streak = computeStreak();
+
+  // Apps goal
+  const appsRow = document.getElementById('goal-apps-count').parentElement.parentElement;
+  if (appsGoal > 0) {
+    appsRow.style.display = '';
+    document.getElementById('goal-apps-count').textContent = `${appsCount} / ${appsGoal}`;
+    const pct = Math.min(100, (appsCount / appsGoal) * 100);
+    const fill = document.getElementById('goal-apps-fill');
+    fill.style.width = pct + '%';
+    fill.classList.toggle('met', appsCount >= appsGoal);
+  } else {
+    appsRow.style.display = 'none';
+  }
+
+  // Messages goal
+  const msgRow = document.getElementById('goal-msg-count').parentElement.parentElement;
+  if (msgsGoal > 0) {
+    msgRow.style.display = '';
+    document.getElementById('goal-msg-count').textContent = `${msgsCount} / ${msgsGoal}`;
+    const pct = Math.min(100, (msgsCount / msgsGoal) * 100);
+    const fill = document.getElementById('goal-msg-fill');
+    fill.style.width = pct + '%';
+    fill.classList.toggle('met', msgsCount >= msgsGoal);
+  } else {
+    msgRow.style.display = 'none';
+  }
+
+  document.getElementById('streak-display').textContent = streak > 0 ? `🔥 ${streak}-day streak` : '○ no streak yet';
+
+  // Hide the whole card if both goals are 0
+  document.getElementById('goals-card').style.display = (appsGoal === 0 && msgsGoal === 0) ? 'none' : '';
+}
+
+// ============ DASHBOARD ============
 function renderDashboard() {
   document.getElementById('today-date').textContent = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  renderDailyAccountability();
   const active = state.apps.filter(a => !['rejected', 'archived'].includes(a.status)).length;
   const interviews = state.apps.filter(a => ['recruiter_screen','hm_call','onsite'].includes(a.status)).length;
   document.getElementById('stat-active').textContent = active;
@@ -331,14 +445,16 @@ async function markActionDone(type, id) {
   setSyncState('syncing');
   try {
     if (type === 'app') {
-      const { error } = await supabase.from('applications').update({ last_action_date: today() }).eq('id', id);
-      if (error) throw error;
       const a = state.apps.find(x => x.id === id);
-      if (a) a.last_action_date = today();
+      const action = a ? computeNextAction(a, 'app').action : 'Follow-up';
+      const newTimeline = a ? [...timelineEvents(a), { date: today(), type: 'followup', label: action + ' — done' }] : null;
+      const { error } = await supabase.from('applications').update({ last_action_date: today(), timeline: newTimeline }).eq('id', id);
+      if (error) throw error;
+      if (a) { a.last_action_date = today(); a.timeline = newTimeline; }
     } else {
+      const c = state.conns.find(x => x.id === id);
       const { error } = await supabase.from('connections').update({ last_contact: today() }).eq('id', id);
       if (error) throw error;
-      const c = state.conns.find(x => x.id === id);
       if (c) c.last_contact = today();
     }
     setSyncState('online');
@@ -414,10 +530,203 @@ function renderApps() {
     <div class="list-cards mobile-only">${cards}</div>`;
 }
 
+// ============ PIPELINE / TIMELINE / SUGGESTIONS / RESUME ============
+const PIPELINE_STAGES = [
+  { key: 'not_applied', label: 'Saved' },
+  { key: 'applied', label: 'Applied' },
+  { key: 'recruiter_screen', label: 'Recruiter' },
+  { key: 'hm_call', label: 'HM call' },
+  { key: 'onsite', label: 'Onsite' },
+  { key: 'offer', label: 'Offer' }
+];
+
+function stageIndex(status) {
+  if (status === 'rejected' || status === 'archived') return -1;
+  const i = PIPELINE_STAGES.findIndex(s => s.key === status);
+  return i >= 0 ? i : 0;
+}
+
+function renderPipeline(app) {
+  const wrap = document.getElementById('app-pipeline');
+  if (!app) { wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+  const idx = stageIndex(app.status);
+  const terminal = app.status === 'rejected' || app.status === 'archived';
+  wrap.innerHTML = PIPELINE_STAGES.map((s, i) => {
+    let cls = 'pipeline-step';
+    if (terminal) cls += ' terminal';
+    else if (i < idx) cls += ' done';
+    else if (i === idx) cls += ' current';
+    return `<div class="${cls}"><div class="dot"></div><div class="label">${s.label}</div></div>`;
+  }).join('') + (terminal
+    ? `<div class="pipeline-step terminal-flag"><div class="dot"></div><div class="label">${app.status === 'offer' ? 'Offer' : app.status === 'rejected' ? 'Rejected' : 'Archived'}</div></div>`
+    : '');
+}
+
+function renderTimelineFor(app) {
+  const section = document.getElementById('app-timeline-section');
+  if (!app) { section.style.display = 'none'; return; }
+  section.style.display = '';
+  const events = timelineEvents(app).slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  if (events.length === 0) {
+    document.getElementById('app-timeline').innerHTML = `<div class="timeline-empty">No steps logged yet. They'll auto-log as you change status, send messages, or mark actions done.</div>`;
+    return;
+  }
+  document.getElementById('app-timeline').innerHTML = events.map(e => `
+    <div class="timeline-row">
+      <div class="timeline-date">${fmtDate(e.date)}</div>
+      <div class="timeline-body">
+        <div class="timeline-label">${escapeHTML(e.label || e.type)}</div>
+        ${e.note ? `<div class="timeline-note">${escapeHTML(e.note)}</div>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+function suggestionsForCompany(company) {
+  if (!company) return [];
+  const cl = company.toLowerCase().trim();
+  if (cl.length < 2) return [];
+  return state.conns.filter(c => {
+    const cc = (c.company || '').toLowerCase();
+    if (!cc) return false;
+    return cc.includes(cl) || cl.includes(cc);
+  }).sort((a, b) => (a.tier || 'Z').localeCompare(b.tier || 'Z')).slice(0, 5);
+}
+
+function updateContactSuggestion() {
+  const company = document.getElementById('app-company').value;
+  const banner = document.getElementById('app-suggest');
+  const suggestions = suggestionsForCompany(company);
+  if (suggestions.length === 0) { banner.style.display = 'none'; return; }
+  banner.style.display = '';
+  banner.innerHTML = `
+    <div class="suggest-head">💡 You know ${suggestions.length} ${suggestions.length === 1 ? 'person' : 'people'} at ${escapeHTML(company)}:</div>
+    <div class="suggest-list">
+      ${suggestions.map(c => `
+        <div class="suggest-row">
+          <div>
+            <span class="pill tier-${c.tier || 'D'}">Tier ${c.tier || 'D'}</span>
+            <strong>${escapeHTML(c.name)}</strong>
+            <span class="suggest-role">${escapeHTML(c.role || '')}</span>
+          </div>
+          <div class="suggest-actions">
+            ${c.linkedin_url ? `<a class="link-btn" href="${escapeHTML(c.linkedin_url)}" target="_blank" rel="noopener">↗ in</a>` : ''}
+            <button class="primary" onclick="openMessageFor('conn','${c.id}')">✎ Draft message</button>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+async function handleResumeUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (file.size > 10 * 1024 * 1024) {
+    toast('File too big (max 10 MB).', 'error');
+    e.target.value = '';
+    return;
+  }
+  const statusEl = document.getElementById('app-resume-status');
+  statusEl.innerHTML = `<span class="spinner"></span> Uploading ${escapeHTML(file.name)}...`;
+  try {
+    const ext = (file.name.match(/\.[a-z0-9]+$/i) || ['.bin'])[0];
+    const path = `${userToken}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`;
+    const { error } = await supabase.storage.from('resumes').upload(path, file, {
+      cacheControl: '3600',
+      upsert: false,
+      contentType: file.type || 'application/octet-stream'
+    });
+    if (error) throw error;
+    pendingResume = { file_path: path, file_name: file.name };
+    statusEl.innerHTML = `✓ <strong>${escapeHTML(file.name)}</strong> ready — will save with this application. <button onclick="clearPendingResume()" class="ghost" style="margin-left:8px">Remove</button>`;
+  } catch (err) {
+    statusEl.innerHTML = `<span style="color:var(--red)">Upload failed: ${escapeHTML(err.message)}</span>`;
+    console.error(err);
+  }
+  e.target.value = '';
+}
+
+function clearPendingResume() {
+  pendingResume = null;
+  const id = document.getElementById('modal-app').dataset.editId;
+  const a = id ? state.apps.find(x => x.id === id) : null;
+  renderResumeStatus(a);
+}
+
+function resumePublicUrl(filePath) {
+  if (!filePath || !supabase) return '';
+  const { data } = supabase.storage.from('resumes').getPublicUrl(filePath);
+  return data?.publicUrl || '';
+}
+
+function renderResumeStatus(app) {
+  const el = document.getElementById('app-resume-status');
+  if (!el) return;
+  if (pendingResume) {
+    el.innerHTML = `✓ <strong>${escapeHTML(pendingResume.file_name)}</strong> uploaded — will save with this application. <button onclick="clearPendingResume()" class="ghost" style="margin-left:8px">Remove</button>`;
+    return;
+  }
+  if (app && app.resume_file_path) {
+    const url = resumePublicUrl(app.resume_file_path);
+    const name = app.resume_file_path.split('/').pop();
+    el.innerHTML = `Current file: <a href="${escapeHTML(url)}" target="_blank" rel="noopener" class="link-btn">↗ ${escapeHTML(name)}</a> <button class="ghost" onclick="removeResumeFile()" style="margin-left:8px">Remove</button>`;
+    return;
+  }
+  el.innerHTML = '';
+}
+
+async function removeResumeFile() {
+  const id = document.getElementById('modal-app').dataset.editId;
+  if (!id) return;
+  const a = state.apps.find(x => x.id === id);
+  if (!a || !a.resume_file_path) return;
+  if (!confirm('Remove this resume file from storage?')) return;
+  try {
+    await supabase.storage.from('resumes').remove([a.resume_file_path]);
+    await supabase.from('applications').update({ resume_file_path: null }).eq('id', id);
+    a.resume_file_path = null;
+    renderResumeStatus(a);
+    toast('Resume removed.', 'success');
+  } catch (e) {
+    toast('Remove failed: ' + e.message, 'error');
+  }
+}
+
+async function addCustomTimelineNote() {
+  const id = document.getElementById('modal-app').dataset.editId;
+  if (!id) { alert('Save the application first to add timeline notes.'); return; }
+  const note = document.getElementById('timeline-note-input').value.trim();
+  if (!note) return;
+  const a = state.apps.find(x => x.id === id);
+  if (!a) return;
+  const newTimeline = [...timelineEvents(a), { date: today(), type: 'note', label: 'Note', note }];
+  try {
+    const { error } = await supabase.from('applications').update({ timeline: newTimeline }).eq('id', id);
+    if (error) throw error;
+    a.timeline = newTimeline;
+    document.getElementById('timeline-note-input').value = '';
+    renderTimelineFor(a);
+    toast('Step added.', 'success');
+  } catch (e) {
+    toast('Failed: ' + e.message, 'error');
+  }
+}
+
+function appendTimelineLocal(app, entry) {
+  if (!app) return;
+  app.timeline = [...timelineEvents(app), { date: today(), ...entry }];
+}
+
 function openAppModal(id) {
+  pendingResume = null;
   document.getElementById('app-delete-btn').style.display = id ? 'inline-block' : 'none';
   document.getElementById('modal-app-title').textContent = id ? 'Edit Application' : 'Add Application';
   document.getElementById('connection-list').innerHTML = state.conns.map(c => `<option value="${escapeHTML(c.name)}">`).join('');
+  document.getElementById('app-resume-url').value = '';
+  document.getElementById('timeline-note-input').value = '';
+
   if (id) {
     const a = state.apps.find(x => x.id === id);
     if (!a) return;
@@ -430,43 +739,74 @@ function openAppModal(id) {
     document.getElementById('app-date').value = a.applied_date || '';
     document.getElementById('app-referrer').value = a.referrer || '';
     document.getElementById('app-notes').value = a.notes || '';
+    document.getElementById('app-resume-url').value = a.resume_url || '';
     document.getElementById('modal-app').dataset.editId = id;
+    renderPipeline(a);
+    renderTimelineFor(a);
+    renderResumeStatus(a);
   } else {
     ['app-company','app-role','app-location','app-salary','app-url','app-referrer','app-notes'].forEach(i => document.getElementById(i).value = '');
     document.getElementById('app-status').value = 'not_applied';
     document.getElementById('app-date').value = today();
     delete document.getElementById('modal-app').dataset.editId;
+    renderPipeline(null);
+    renderTimelineFor(null);
+    renderResumeStatus(null);
   }
+  updateContactSuggestion();
   document.getElementById('modal-app').classList.add('active');
 }
 
 async function saveApp() {
   const id = document.getElementById('modal-app').dataset.editId;
+  const existing = id ? state.apps.find(x => x.id === id) : null;
+  const newStatus = document.getElementById('app-status').value;
+  const newDate = document.getElementById('app-date').value || null;
+
   const data = {
     company: document.getElementById('app-company').value.trim(),
     role: document.getElementById('app-role').value.trim(),
     location: document.getElementById('app-location').value.trim(),
     salary: document.getElementById('app-salary').value.trim(),
     jd_url: document.getElementById('app-url').value.trim(),
-    status: document.getElementById('app-status').value,
-    applied_date: document.getElementById('app-date').value || null,
+    status: newStatus,
+    applied_date: newDate,
     referrer: document.getElementById('app-referrer').value.trim(),
-    notes: document.getElementById('app-notes').value.trim()
+    notes: document.getElementById('app-notes').value.trim(),
+    resume_url: document.getElementById('app-resume-url').value.trim() || null
   };
+  if (pendingResume) data.resume_file_path = pendingResume.file_path;
+
   if (!data.company || !data.role) { alert('Company and role required.'); return; }
+
+  // Compute timeline updates: log status changes and creation.
+  let timeline = existing ? timelineEvents(existing).slice() : [];
+  const oldStatus = existing ? existing.status : null;
+  if (!existing) {
+    timeline.push({ date: today(), type: 'created', label: 'Job added to tracker' });
+  }
+  if (oldStatus !== newStatus) {
+    const stageLabel = (PIPELINE_STAGES.find(s => s.key === newStatus) || {}).label || newStatus.replace(/_/g, ' ');
+    timeline.push({ date: newDate || today(), type: newStatus, label: `Status → ${stageLabel}` });
+  }
+  if (pendingResume) {
+    timeline.push({ date: today(), type: 'resume', label: `Resume attached: ${pendingResume.file_name}` });
+  }
+  data.timeline = timeline;
+
   setSyncState('syncing');
   try {
     if (id) {
       const { error } = await supabase.from('applications').update(data).eq('id', id);
       if (error) throw error;
-      const a = state.apps.find(x => x.id === id);
-      Object.assign(a, data);
+      Object.assign(existing, data);
     } else {
       data.owner_token = userToken;
       const { data: inserted, error } = await supabase.from('applications').insert(data).select().single();
       if (error) throw error;
       state.apps.unshift(inserted);
     }
+    pendingResume = null;
     setSyncState('online');
     closeModal('modal-app');
     toast(id ? 'Application updated.' : 'Application saved.', 'success');
@@ -620,6 +960,7 @@ async function saveParsed() {
     status: 'not_applied',
     applied_date: null,
     referrer: '',
+    timeline: [{ date: today(), type: 'created', label: 'Job added via parser' }],
     owner_token: userToken
   };
   if (!data.company || !data.role) { alert('Company and role required — edit the fields above.'); return; }
@@ -1029,9 +1370,11 @@ async function markMessageSent() {
     } else {
       const a = state.apps.find(x => x.id === id);
       if (a) {
-        const { error } = await supabase.from('applications').update({ last_action_date: today() }).eq('id', id);
+        const newTimeline = [...timelineEvents(a), { date: today(), type: 'outreach', label: 'Outreach message sent' }];
+        const { error } = await supabase.from('applications').update({ last_action_date: today(), timeline: newTimeline }).eq('id', id);
         if (error) throw error;
         a.last_action_date = today();
+        a.timeline = newTimeline;
       }
     }
     setSyncState('online');
@@ -1056,19 +1399,27 @@ function loadSettingsForm() {
   document.getElementById('set-focus').value = state.settings.focus || '';
   document.getElementById('set-pitch').value = state.settings.pitch || '';
   document.getElementById('set-targets').value = state.settings.targets || '';
+  const appsGoal = document.getElementById('set-apps-goal');
+  const msgGoal = document.getElementById('set-msg-goal');
+  if (appsGoal) appsGoal.value = state.settings.daily_apps_goal ?? 25;
+  if (msgGoal) msgGoal.value = state.settings.daily_messages_goal ?? 10;
 }
 
 let settingsSaveTimer = null;
 async function saveSettings() {
   clearTimeout(settingsSaveTimer);
   settingsSaveTimer = setTimeout(async () => {
+    const appsGoalEl = document.getElementById('set-apps-goal');
+    const msgGoalEl = document.getElementById('set-msg-goal');
     const data = {
       owner_token: userToken,
       name: document.getElementById('set-name').value,
       school: document.getElementById('set-school').value,
       focus: document.getElementById('set-focus').value,
       pitch: document.getElementById('set-pitch').value,
-      targets: document.getElementById('set-targets').value
+      targets: document.getElementById('set-targets').value,
+      daily_apps_goal: appsGoalEl ? (parseInt(appsGoalEl.value, 10) || 0) : (state.settings.daily_apps_goal ?? 25),
+      daily_messages_goal: msgGoalEl ? (parseInt(msgGoalEl.value, 10) || 0) : (state.settings.daily_messages_goal ?? 10)
     };
     setSyncState('syncing');
     try {
@@ -1077,6 +1428,7 @@ async function saveSettings() {
       state.settings = data;
       setSyncState('online');
       toast('Saved.', 'success');
+      renderDailyAccountability();
     } catch (e) {
       setSyncState('error');
       toast('Settings save failed: ' + e.message, 'error');

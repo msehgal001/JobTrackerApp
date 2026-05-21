@@ -131,7 +131,57 @@ create policy "settings_token_policy" on settings
 
 
 -- ============================================================
--- 5. DONE
+-- 5. v2.1 MIGRATION — resumes, timeline, daily goals
+-- ============================================================
+-- Safe to re-run; all statements are idempotent.
+
+-- Per-application resume + timeline + outreach-suggestion fields
+alter table applications add column if not exists resume_url text;
+alter table applications add column if not exists resume_file_path text;
+alter table applications add column if not exists timeline jsonb default '[]'::jsonb;
+
+-- Per-user daily goals
+alter table settings add column if not exists daily_apps_goal int default 25;
+alter table settings add column if not exists daily_messages_goal int default 10;
+
+-- Resume storage bucket (public-read so links work without signed URLs;
+-- file paths are random uuids under the owner_token folder, so they're
+-- not enumerable from outside)
+insert into storage.buckets (id, name, public)
+  values ('resumes', 'resumes', true)
+  on conflict (id) do nothing;
+
+-- Storage write/update/delete policies: only the token holder can write
+-- to their own <owner_token>/... folder. Read is public.
+drop policy if exists "resumes_token_insert" on storage.objects;
+drop policy if exists "resumes_token_update" on storage.objects;
+drop policy if exists "resumes_token_delete" on storage.objects;
+drop policy if exists "resumes_public_read" on storage.objects;
+
+create policy "resumes_public_read" on storage.objects for select
+  using (bucket_id = 'resumes');
+
+create policy "resumes_token_insert" on storage.objects for insert
+  with check (
+    bucket_id = 'resumes' and
+    (storage.foldername(name))[1] = current_setting('request.headers', true)::json->>'x-owner-token'
+  );
+
+create policy "resumes_token_update" on storage.objects for update
+  using (
+    bucket_id = 'resumes' and
+    (storage.foldername(name))[1] = current_setting('request.headers', true)::json->>'x-owner-token'
+  );
+
+create policy "resumes_token_delete" on storage.objects for delete
+  using (
+    bucket_id = 'resumes' and
+    (storage.foldername(name))[1] = current_setting('request.headers', true)::json->>'x-owner-token'
+  );
+
+
+-- ============================================================
+-- 6. DONE
 -- ============================================================
 -- Next steps:
 --   1. Generate a random token: openssl rand -hex 32
