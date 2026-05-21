@@ -102,6 +102,27 @@
         <h2>Today.</h2>
         <div class="date" id="today-date"></div>
       </div>
+
+      <!-- Daily accountability -->
+      <div class="goals-card" id="goals-card">
+        <div class="goals-head">
+          <h3>Daily accountability</h3>
+          <div class="streak" id="streak-display">🔥 0-day streak</div>
+        </div>
+        <div class="goals-grid">
+          <div class="goal">
+            <div class="goal-label"><span>Applications today</span><span class="goal-count" id="goal-apps-count">0 / 25</span></div>
+            <div class="progress"><div class="progress-fill" id="goal-apps-fill"></div></div>
+            <div class="goal-sub" id="goal-apps-sub">Add new jobs or change status to "applied" today.</div>
+          </div>
+          <div class="goal">
+            <div class="goal-label"><span>Outreach / cold messages today</span><span class="goal-count" id="goal-msg-count">0 / 10</span></div>
+            <div class="progress"><div class="progress-fill green" id="goal-msg-fill"></div></div>
+            <div class="goal-sub" id="goal-msg-sub">Mark a personalized message as sent to count it.</div>
+          </div>
+        </div>
+      </div>
+
       <div class="stat-grid">
         <div class="stat"><div class="label">Active apps</div><div class="value" id="stat-active">0</div><div class="sub">in pipeline</div></div>
         <div class="stat green"><div class="label">Interviews</div><div class="value" id="stat-interviews">0</div><div class="sub">scheduled or in flight</div></div>
@@ -240,6 +261,14 @@
         </div>
       </div>
       <div class="section">
+        <h3>Daily goals (accountability meter)</h3>
+        <div class="form-grid">
+          <div class="field"><label>Applications per day</label><input type="number" id="set-apps-goal" min="0" max="200" onchange="saveSettings()"></div>
+          <div class="field"><label>Outreach messages per day</label><input type="number" id="set-msg-goal" min="0" max="200" onchange="saveSettings()"></div>
+        </div>
+        <div style="font-size:12px;color:var(--text-dim);margin-top:6px">Set to 0 to hide that bar. Dashboard shows progress vs. these every day.</div>
+      </div>
+      <div class="section">
         <h3>Target companies (auto-tier on import)</h3>
         <label>Comma-separated company names you're targeting</label>
         <textarea id="set-targets" onchange="saveSettings()" style="min-height: 100px"></textarea>
@@ -272,8 +301,15 @@
   <div class="modal">
     <h3 id="modal-app-title">Add Application</h3>
     <div class="modal-sub">Track this job through the pipeline.</div>
+
+    <!-- Pipeline progress (only shown when editing) -->
+    <div id="app-pipeline" class="pipeline" style="display:none"></div>
+
+    <!-- "Who do you know at this company" suggestion -->
+    <div id="app-suggest" class="suggest-banner" style="display:none"></div>
+
     <div class="form-grid">
-      <div class="field"><label>Company</label><input type="text" id="app-company"></div>
+      <div class="field"><label>Company</label><input type="text" id="app-company" oninput="updateContactSuggestion()"></div>
       <div class="field"><label>Role</label><input type="text" id="app-role"></div>
       <div class="field"><label>Location</label><input type="text" id="app-location"></div>
       <div class="field"><label>Salary / Comp</label><input type="text" id="app-salary"></div>
@@ -293,7 +329,30 @@
       <div class="field"><label>Applied date</label><input type="date" id="app-date"></div>
       <div class="field full"><label>Referrer (connection name)</label><input type="text" id="app-referrer" list="connection-list"><datalist id="connection-list"></datalist></div>
       <div class="field full"><label>Key requirements / notes</label><textarea id="app-notes" style="min-height:80px"></textarea></div>
+
+      <!-- Resume section -->
+      <div class="field full resume-section">
+        <label>Resume used for this job</label>
+        <div class="resume-row">
+          <input type="url" id="app-resume-url" placeholder="Paste a link (Google Drive, Dropbox, etc.)">
+          <span class="resume-or">or</span>
+          <label for="app-resume-file" class="file-btn">⤒ Upload file</label>
+          <input type="file" id="app-resume-file" accept=".pdf,.doc,.docx" style="display:none" onchange="handleResumeUpload(event)">
+        </div>
+        <div id="app-resume-status" class="resume-status"></div>
+      </div>
     </div>
+
+    <!-- Timeline / activity log -->
+    <div class="timeline-section" id="app-timeline-section" style="display:none">
+      <h4>Step tracker — what happened &amp; when</h4>
+      <div id="app-timeline" class="timeline"></div>
+      <div class="flex gap mt-1">
+        <input type="text" id="timeline-note-input" placeholder="Add a custom step (e.g. 'spoke to recruiter, sent portfolio')">
+        <button onclick="addCustomTimelineNote()">+ Add</button>
+      </div>
+    </div>
+
     <div class="modal-actions">
       <button class="ghost" onclick="closeModal('modal-app')">Cancel</button>
       <button class="danger" id="app-delete-btn" onclick="deleteApp()" style="display:none">Delete</button>
