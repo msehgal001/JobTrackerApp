@@ -103,6 +103,29 @@
         <div class="date" id="today-date"></div>
       </div>
 
+      <!-- Daily jobs feed -->
+      <div class="feed-card" id="feed-card">
+        <div class="feed-head">
+          <h3>Fresh jobs <span class="feed-since">— last 24h</span></h3>
+          <div class="feed-controls">
+            <select id="feed-sort" onchange="renderJobsFeed()">
+              <option value="relevance">Sort: relevance</option>
+              <option value="posted_at">Sort: most recent</option>
+              <option value="company">Sort: company</option>
+            </select>
+            <select id="feed-filter" onchange="renderJobsFeed()">
+              <option value="all">All sources</option>
+              <option value="greenhouse">Greenhouse only</option>
+              <option value="lever">Lever only</option>
+              <option value="jsearch">JSearch only</option>
+              <option value="alum">Has alum at company</option>
+              <option value="conn">Has any connection</option>
+            </select>
+          </div>
+        </div>
+        <div id="feed-list"></div>
+      </div>
+
       <!-- Daily accountability -->
       <div class="goals-card" id="goals-card">
         <div class="goals-head">
@@ -266,6 +289,24 @@
           <div class="field"><label>Your focus area</label><input type="text" id="set-focus" placeholder="CFD & data-driven methods" onchange="saveSettings()"></div>
           <div class="field full"><label>One-line elevator pitch</label><input type="text" id="set-pitch" onchange="saveSettings()"></div>
         </div>
+      </div>
+      <div class="section">
+        <h3>Daily jobs feed</h3>
+        <div class="form-grid">
+          <div class="field full">
+            <label>Resume text (paste plain text — used for relevance scoring)</label>
+            <textarea id="set-resume-text" placeholder="Paste your full resume here. The daily fetch extracts keywords from this to score each job's relevance." style="min-height:140px;font-family:'JetBrains Mono',monospace;font-size:12px" onchange="saveSettings()"></textarea>
+          </div>
+          <div class="field full">
+            <label>JSearch keyword queries (one per line — each uses one of your 500/mo RapidAPI calls)</label>
+            <textarea id="set-jsearch-queries" placeholder="CFD engineer United States&#10;aerodynamics new grad&#10;simulation engineer remote" style="min-height:80px" onchange="saveSettings()"></textarea>
+          </div>
+          <div class="field full">
+            <label>ATS slug overrides (optional — for companies where slug ≠ name)</label>
+            <input type="text" id="set-ats-slugs" placeholder="OpenAI:openai:greenhouse, Anthropic:anthropic:greenhouse, Figma:figma:greenhouse" onchange="saveSettings()">
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--text-dim);margin-top:6px">Targets list above feeds Greenhouse + Lever automatically. JSearch is for broader keyword discovery. See README for GitHub Actions setup.</div>
       </div>
       <div class="section">
         <h3>Daily goals (accountability meter)</h3>

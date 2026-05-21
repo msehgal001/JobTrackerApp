@@ -915,6 +915,116 @@ td .row-sub { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ===== DAILY JOBS FEED ===== */
+.feed-card {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+.feed-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.feed-head h3 { font-size: 16px; font-weight: 700; margin: 0; }
+.feed-since { font-size: 11px; color: var(--text-dim); font-weight: 400; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.06em; }
+.feed-controls { display: flex; gap: 8px; flex-wrap: wrap; }
+.feed-controls select { font-size: 12px; padding: 6px 8px; }
+.feed-empty {
+  text-align: center;
+  padding: 28px 16px;
+  font-size: 14px;
+  color: var(--text-dim);
+}
+.feed-empty-sub { font-size: 12px; color: var(--text-faint); margin-top: 8px; }
+
+.job-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 16px;
+  padding: 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent-2);
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+.job-card-main { min-width: 0; }
+.job-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.job-title-row strong { font-size: 14px; }
+.score-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: var(--bg-elev-2);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.score-badge.high { background: rgba(74, 222, 128, 0.15); color: var(--green); border-color: var(--green); }
+.score-badge.mid { background: rgba(255, 210, 63, 0.15); color: var(--accent-2); border-color: rgba(255, 210, 63, 0.5); }
+.job-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+.job-meta .dot { color: var(--text-faint); }
+.job-source { text-transform: uppercase; font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.06em; }
+.job-time { color: var(--text-dim); }
+.job-conns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.job-conn-count { color: var(--blue); }
+.job-conn-names { font-size: 11px; color: var(--text-dim); width: 100%; }
+.no-conns { color: var(--text-faint); font-style: italic; }
+.job-card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+.job-card-actions button, .job-card-actions .link-btn {
+  font-size: 11px;
+  padding: 8px 10px;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .feed-card { padding: 14px; }
+  .feed-controls { width: 100%; }
+  .feed-controls select { flex: 1; min-width: 0; }
+  .job-card {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .job-card-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: stretch;
+  }
+  .job-card-actions button, .job-card-actions .link-btn { flex: 1; text-align: center; }
+}
+
 /* ===== DAILY ACCOUNTABILITY ===== */
 .goals-card {
   background: var(--bg-elev);

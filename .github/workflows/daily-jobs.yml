@@ -1,0 +1,24 @@
+name: Daily Jobs Fetch
+
+on:
+  schedule:
+    # 13:00 UTC = 8am ET / 5am PT. Adjust to taste.
+    - cron: '0 13 * * *'
+  workflow_dispatch:
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Run fetch script
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          OWNER_TOKEN: ${{ secrets.OWNER_TOKEN }}
+          RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
+        run: node .github/scripts/fetch-jobs.mjs

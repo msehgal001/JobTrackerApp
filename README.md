@@ -182,9 +182,28 @@ If you set up the tracker before this release, run the **v2.1 MIGRATION** block 
 
 If you skip this step, saving applications will fail with a "column does not exist" error.
 
-## Updating the app
+## Daily Jobs Feed (optional, GitHub Actions cron)
 
-Edit any file, push to your repo. GitHub Pages auto-deploys in ~1 min. The service worker will fetch the new version on next load.
+If you want the Dashboard's "Fresh jobs — last 24h" panel to populate every morning automatically, set up the daily fetch workflow.
+
+**One-time setup:**
+
+1. In Supabase Dashboard → **Project Settings → API** → copy your **service_role** key (different from the anon key — keep this one secret, never commit it).
+2. In your GitHub repo → **Settings → Secrets and variables → Actions → New repository secret**. Add these:
+   - `SUPABASE_URL` — your project URL (same as anon)
+   - `SUPABASE_SERVICE_KEY` — the service_role key from step 1
+   - `OWNER_TOKEN` — your tracker's owner token (the one you paste on first launch)
+   - `RAPIDAPI_KEY` — *optional*; sign up free at [rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch](https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch) for 500 free calls/mo. Skip if you only want Greenhouse + Lever (target-company) jobs.
+3. In the app → **Settings → Daily jobs feed** section:
+   - Paste your **resume text** (used for relevance scoring)
+   - Add **JSearch keyword queries** (one per line, e.g. "CFD engineer", "aerodynamics new grad") — only used if you set `RAPIDAPI_KEY`
+   - Optional: **ATS slug overrides** for companies where the URL slug doesn't match the name (e.g. `Snowflake:snowflake-inc:greenhouse`)
+   - Make sure your **Target companies** list (the existing field) is populated — those drive the Greenhouse/Lever fetches
+4. Push to your repo. GitHub Actions runs the fetch at 13:00 UTC daily; trigger it now via **Actions → Daily Jobs Fetch → Run workflow**.
+
+The Dashboard will show top 30 freshest jobs ranked by keyword overlap with your resume, with alum + connection counts per company and a one-click "+ Track" to add to your applications pipeline.
+
+## Upgrading from v2.0 → v2.2 (resumes, step tracker, daily goals)
 
 If a new version doesn't appear, do a hard refresh (Ctrl+Shift+R or Cmd+Shift+R) or close + reopen the PWA.
 

@@ -148,6 +148,36 @@ alter table settings add column if not exists daily_messages_goal int default 10
 alter table connections add column if not exists school text;
 alter table settings add column if not exists school_short text;
 
+-- v2.4: daily jobs feed
+alter table settings add column if not exists resume_text text;
+alter table settings add column if not exists jsearch_queries text;
+alter table settings add column if not exists ats_slugs text;
+
+create table if not exists jobs_feed (
+  id uuid primary key default uuid_generate_v4(),
+  owner_token text not null,
+  title text not null,
+  company text not null,
+  location text,
+  url text not null,
+  posted_at timestamptz,
+  source text,
+  description text,
+  relevance_score int default 0,
+  dismissed boolean default false,
+  fetched_at timestamptz default now()
+);
+
+create unique index if not exists ux_jobsfeed_owner_url on jobs_feed(owner_token, url);
+create index if not exists idx_jobsfeed_owner_date on jobs_feed(owner_token, posted_at desc);
+
+alter table jobs_feed enable row level security;
+drop policy if exists "jobsfeed_token_policy" on jobs_feed;
+create policy "jobsfeed_token_policy" on jobs_feed
+  for all
+  using (owner_token = current_setting('request.headers', true)::json->>'x-owner-token')
+  with check (owner_token = current_setting('request.headers', true)::json->>'x-owner-token');
+
 -- Resume storage bucket (public-read so links work without signed URLs;
 -- file paths are random uuids under the owner_token folder, so they're
 -- not enumerable from outside)
