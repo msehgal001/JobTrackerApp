@@ -144,6 +144,10 @@ alter table applications add column if not exists timeline jsonb default '[]'::j
 alter table settings add column if not exists daily_apps_goal int default 25;
 alter table settings add column if not exists daily_messages_goal int default 10;
 
+-- v2.3: personalized outreach
+alter table connections add column if not exists school text;
+alter table settings add column if not exists school_short text;
+
 -- Resume storage bucket (public-read so links work without signed URLs;
 -- file paths are random uuids under the owner_token folder, so they're
 -- not enumerable from outside)

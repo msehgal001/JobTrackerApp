@@ -255,7 +255,8 @@
         <h3>Your profile (used in message templates)</h3>
         <div class="form-grid">
           <div class="field full"><label>Your name</label><input type="text" id="set-name" onchange="saveSettings()"></div>
-          <div class="field"><label>Your school/program</label><input type="text" id="set-school" placeholder="University of Michigan, M.S. Aerospace" onchange="saveSettings()"></div>
+          <div class="field"><label>Your school/program (full)</label><input type="text" id="set-school" placeholder="University of Michigan, M.S. Aerospace" onchange="saveSettings()"></div>
+          <div class="field"><label>School short name (used in messages)</label><input type="text" id="set-school-short" placeholder="e.g. Michigan, MIT, Stanford — leave blank to auto-detect" onchange="saveSettings()"></div>
           <div class="field"><label>Your focus area</label><input type="text" id="set-focus" placeholder="CFD & data-driven methods" onchange="saveSettings()"></div>
           <div class="field full"><label>One-line elevator pitch</label><input type="text" id="set-pitch" onchange="saveSettings()"></div>
         </div>
@@ -369,6 +370,7 @@
       <div class="field"><label>Name</label><input type="text" id="conn-name"></div>
       <div class="field"><label>Company</label><input type="text" id="conn-company"></div>
       <div class="field full"><label>Role / Position</label><input type="text" id="conn-role"></div>
+      <div class="field full"><label>School (used for alum detection in messages)</label><input type="text" id="conn-school" placeholder="e.g. University of Michigan"></div>
       <div class="field full"><label>LinkedIn URL</label><input type="url" id="conn-url"></div>
       <div class="field"><label>Tier</label>
         <select id="conn-tier">

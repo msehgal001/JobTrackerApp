@@ -689,6 +689,34 @@ td .row-sub { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
 
 .template-card .actions { display: flex; gap: 8px; }
 
+.template-variant {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--border);
+}
+.template-variant:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
+.template-variant-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+.template-variant .body { margin-bottom: 10px; }
+.template-variant button { font-size: 11px; }
+
+.setup-note {
+  background: rgba(255, 210, 63, 0.1);
+  border: 1px solid var(--accent-2);
+  color: var(--accent-2);
+  padding: 12px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+.setup-note strong { color: var(--text); }
+
 /* EMPTY STATE */
 .empty {
   text-align: center;

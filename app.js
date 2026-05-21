@@ -156,19 +156,38 @@ async function checkConnection() {
 }
 
 // ============ DATA LOAD ============
+// PostgREST caps a single .select() at max-rows (1000 in Supabase defaults),
+// so paginate until we get a short page back. CSV imports of LinkedIn
+// connection lists can easily exceed this.
+async function fetchAllRows(table, orderCol, ascending = true) {
+  const PAGE = 1000;
+  let all = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from(table)
+      .select('*')
+      .order(orderCol, { ascending })
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    all = all.concat(data || []);
+    if (!data || data.length < PAGE) break;
+    from += PAGE;
+  }
+  return all;
+}
+
 async function loadAll() {
   setSyncState('syncing');
   try {
     const [apps, conns, settingsRow] = await Promise.all([
-      supabase.from('applications').select('*').order('created_at', { ascending: false }),
-      supabase.from('connections').select('*').order('name', { ascending: true }),
+      fetchAllRows('applications', 'created_at', false),
+      fetchAllRows('connections', 'name', true),
       supabase.from('settings').select('*').eq('owner_token', userToken).maybeSingle()
     ]);
-    if (apps.error) throw apps.error;
-    if (conns.error) throw conns.error;
     if (settingsRow.error && settingsRow.error.code !== 'PGRST116') throw settingsRow.error;
-    state.apps = apps.data || [];
-    state.conns = conns.data || [];
+    state.apps = apps;
+    state.conns = conns;
     if (settingsRow.data) state.settings = settingsRow.data;
     setSyncState('online');
   } catch (e) {
@@ -1060,13 +1079,14 @@ function openConnectionModal(id) {
     document.getElementById('conn-name').value = c.name || '';
     document.getElementById('conn-company').value = c.company || '';
     document.getElementById('conn-role').value = c.role || '';
+    document.getElementById('conn-school').value = c.school || '';
     document.getElementById('conn-url').value = c.linkedin_url || '';
     document.getElementById('conn-tier').value = c.tier || 'D';
     document.getElementById('conn-status').value = c.status || 'identified';
     document.getElementById('conn-notes').value = c.notes || '';
     document.getElementById('modal-conn').dataset.editId = id;
   } else {
-    ['conn-name','conn-company','conn-role','conn-url','conn-notes'].forEach(i => document.getElementById(i).value = '');
+    ['conn-name','conn-company','conn-role','conn-school','conn-url','conn-notes'].forEach(i => document.getElementById(i).value = '');
     document.getElementById('conn-tier').value = 'C';
     document.getElementById('conn-status').value = 'identified';
     delete document.getElementById('modal-conn').dataset.editId;
@@ -1080,6 +1100,7 @@ async function saveConn() {
     name: document.getElementById('conn-name').value.trim(),
     company: document.getElementById('conn-company').value.trim(),
     role: document.getElementById('conn-role').value.trim(),
+    school: document.getElementById('conn-school').value.trim(),
     linkedin_url: document.getElementById('conn-url').value.trim(),
     tier: document.getElementById('conn-tier').value,
     status: document.getElementById('conn-status').value,
@@ -1225,125 +1246,259 @@ function splitCSVLine(line) {
   return result;
 }
 
-// ============ MESSAGE TEMPLATES ============
-const TEMPLATES = [
-  {
-    id: 'connect_alum',
-    name: 'Connection request — UMich alum',
-    when: 'First touch to a fellow Michigan alum at a target company',
-    body: (ctx) => `Hi ${ctx.firstName} — fellow Wolverine here, finishing my ${ctx.school} with a focus on ${ctx.focus}. Saw your work at ${ctx.company} and would love to connect and learn from your path.`
-  },
-  {
-    id: 'connect_cold',
-    name: 'Connection request — cold',
-    when: 'First touch when you have no shared connection',
-    body: (ctx) => `Hi ${ctx.firstName} — I'm a ${ctx.school} grad student focused on ${ctx.focus} and a big admirer of the ${ctx.company} ${ctx.team || 'team'}. Would love to connect and follow your work.`
-  },
-  {
-    id: 'coffee_chat',
-    name: 'Coffee chat ask (after they accept)',
-    when: 'Send 1-2 days after a connection request is accepted',
-    body: (ctx) => `Thanks for connecting, ${ctx.firstName}. I'm finishing my ${ctx.school} focused on ${ctx.focus} and exploring full-time roles. I'm not asking you to refer me — I'd just genuinely value 15 minutes to hear how you ended up at ${ctx.company} and what you'd look for in a new ${ctx.targetRole || 'CFD'} hire today. Free any time next week?`
-  },
-  {
-    id: 'thank_you_chat',
-    name: 'Thank-you after coffee chat',
-    when: 'Send within 24 hours of the call',
-    body: (ctx) => `Thanks again for the time today, ${ctx.firstName}. Two things really stuck with me: [SPECIFIC THING 1] and [SPECIFIC THING 2 — fill in]. Going to look more into ${ctx.followUpTopic || '[topic they suggested]'} this week. Will keep you posted on how the search goes — and if I can ever be useful in return, just say the word.`
-  },
-  {
-    id: 'referral_ask',
-    name: 'Referral ask (end of chat or via email)',
-    when: 'At end of coffee chat OR follow-up if you forgot in the call',
-    body: (ctx) => `${ctx.firstName} — based on what we discussed, I think the ${ctx.targetRole || '[role]'} on your team (req ${ctx.reqId || '#XXXXX'}) lines up well with my background in ${ctx.focus}. Would you be open to passing my resume along internally? Attaching it here — happy to tailor anything if useful.`
-  },
-  {
-    id: 'recruiter_d7',
-    name: 'Recruiter D+7 follow-up (with referral)',
-    when: '7 days after applying with a referral',
-    body: (ctx) => `Hi ${ctx.firstName} — checking in on req ${ctx.reqId || '#XXXXX'} for ${ctx.role} at ${ctx.company}. ${ctx.referrer || '[Referrer name]'} on your team kindly passed my resume along last week. My background in ${ctx.focus} maps closely to the JD's emphasis on [specific requirement]. Happy to share more or set up a call.`
-  },
-  {
-    id: 'hm_d14',
-    name: 'Hiring manager D+14 nudge',
-    when: '14 days after applying, no recruiter response',
-    body: (ctx) => `Hi ${ctx.firstName} — I applied to the ${ctx.role} role on your team (req ${ctx.reqId || '#XXXXX'}) about two weeks ago and wanted to introduce myself directly. My work on ${ctx.projectHook || '[specific project]'} feels like a strong fit with what your team is building. Happy to send a 2-min Loom walkthrough if useful.`
-  },
-  {
-    id: 'nurture_3wk',
-    name: 'Nurture check-in (3 weeks post-chat)',
-    when: 'Every 3 weeks to keep referrers warm',
-    body: (ctx) => `Hi ${ctx.firstName} — quick update: ${ctx.update || '[shipped X / read Y paper / went to Z conference]'}. Thought of you because of ${ctx.connectReason || '[their work / our chat about Z]'}. How are things at ${ctx.company}?`
-  },
-  {
-    id: 'thank_you_interview',
-    name: 'Post-interview thank-you',
-    when: 'Within 24 hours of any interview',
-    body: (ctx) => `${ctx.firstName} — really appreciated the conversation today. The discussion on ${ctx.topic || '[specific technical topic]'} got me thinking; will follow up offline with [thought / paper / data]. Excited about the possibility of working on ${ctx.teamProblem || "[their team's problem]"}. Let me know if you need anything else from my end.`
-  }
+// ============ PERSONALIZED OUTREACH ENGINE ============
+// Every generated message is built from real context: shared school
+// (alum), target-company match, role type (recruiter / IC / senior /
+// manager), and the user's own focus + pitch. No more "fellow Wolverine"
+// on every message regardless of who's reading.
+
+const SCHOOL_NICKNAMES = [
+  ['michigan', 'Michigan'], ['umich', 'Michigan'],
+  ['mit', 'MIT'], ['massachusetts institute', 'MIT'],
+  ['stanford', 'Stanford'],
+  ['berkeley', 'Berkeley'], ['uc berkeley', 'Berkeley'],
+  ['carnegie mellon', 'CMU'], ['cmu', 'CMU'],
+  ['harvard', 'Harvard'], ['yale', 'Yale'], ['princeton', 'Princeton'],
+  ['columbia', 'Columbia'], ['cornell', 'Cornell'], ['dartmouth', 'Dartmouth'],
+  ['brown university', 'Brown'], ['penn', 'Penn'], ['upenn', 'Penn'],
+  ['georgia tech', 'Georgia Tech'], ['gatech', 'Georgia Tech'],
+  ['ut austin', 'UT'], ['texas at austin', 'UT'],
+  ['ucla', 'UCLA'], ['usc', 'USC'], ['nyu', 'NYU'],
+  ['caltech', 'Caltech'], ['purdue', 'Purdue'],
+  ['illinois', 'Illinois'], ['urbana', 'Illinois'], ['uiuc', 'Illinois'],
+  ['wisconsin', 'Wisconsin'], ['ohio state', 'Ohio State'],
+  ['penn state', 'Penn State'], ['duke', 'Duke'], ['rice', 'Rice'],
+  ['waterloo', 'Waterloo'], ['toronto', 'Toronto'],
+  ['oxford', 'Oxford'], ['cambridge', 'Cambridge'], ['imperial', 'Imperial'],
+  ['eth zurich', 'ETH'], ['eth ', 'ETH'],
+  ['iit ', 'IIT'], ['indian institute of technology', 'IIT'],
+  ['nit ', 'NIT'], ['bits pilani', 'BITS']
 ];
 
-function defaultCtx() {
+function deriveSchoolShort(full) {
+  if (!full) return '';
+  const s = full.toLowerCase();
+  for (const [needle, label] of SCHOOL_NICKNAMES) {
+    if (s.includes(needle)) return label;
+  }
+  // Fallback: first capitalized standalone word that's not "University"/"Institute"/etc.
+  const skip = /^(university|institute|college|school|of|the)$/i;
+  const words = full.split(/[\s,]+/).filter(w => /^[A-Z][a-z]+/.test(w) && !skip.test(w));
+  return words[0] || '';
+}
+
+function isAlumOf(connSchool, userSchool) {
+  if (!connSchool || !userSchool) return false;
+  const cs = deriveSchoolShort(connSchool);
+  const us = deriveSchoolShort(userSchool);
+  if (cs && us && cs.toLowerCase() === us.toLowerCase()) return true;
+  // Substring fallback for unrecognized schools
+  const a = connSchool.toLowerCase();
+  const b = userSchool.toLowerCase();
+  return (b.length >= 6 && a.includes(b.slice(0, 12))) ||
+         (a.length >= 6 && b.includes(a.slice(0, 12)));
+}
+
+function connectionContext(conn, user) {
+  const fullName = (conn.name || '').trim();
+  const firstName = fullName.split(/\s+/)[0] || 'there';
+  const role = (conn.role || '').toLowerCase();
+  const userSchoolShort = (user.school_short || deriveSchoolShort(user.school) || '').trim();
+  const alum = isAlumOf(conn.school, user.school);
+  const targets = (user.targets || '').toLowerCase().split(',').map(s => s.trim()).filter(Boolean);
+  const compLower = (conn.company || '').toLowerCase();
+  const isTarget = compLower && targets.some(t => t && (compLower.includes(t) || t.includes(compLower)));
+  const isRecruiter = /\b(recruiter|talent|sourcer|hr|people ops|talent acq)\b/.test(role);
+  const isSenior = /\b(senior|staff|principal|architect|distinguished|fellow|sr\.)\b/.test(role);
+  const isManager = /\b(manager|director|head|vp|chief|cto|cpo|coo|lead)\b/.test(role);
   return {
-    firstName: '[NAME]', school: state.settings.school || '[your school]', focus: state.settings.focus || '[your focus]',
-    company: '[COMPANY]', team: '[team]', targetRole: '[role]', reqId: '#XXXXX', role: '[ROLE]',
-    referrer: '[Referrer]', projectHook: '[project]', update: '[update]', connectReason: '[reason]',
-    topic: '[topic]', teamProblem: '[problem]', followUpTopic: '[topic]'
+    firstName, fullName,
+    company: conn.company || '',
+    role: conn.role || '',
+    school: conn.school || '',
+    tier: conn.tier || 'D',
+    alum, isTarget, isRecruiter, isSenior, isManager,
+    userName: user.name || '',
+    userSchool: user.school || '',
+    userSchoolShort,
+    userFocus: user.focus || '',
+    userPitch: (user.pitch || '').trim()
   };
 }
 
-function renderTemplates() {
-  const ctx = defaultCtx();
-  document.getElementById('templates-list').innerHTML = TEMPLATES.map(t => `
-    <div class="template-card">
-      <h4>${t.name}</h4>
-      <div class="meta">${t.when}</div>
-      <div class="body">${escapeHTML(t.body(ctx))}</div>
-      <div class="actions">
-        <button class="primary" onclick="copyTemplate('${t.id}')">⎘ Copy</button>
-      </div>
-    </div>
-  `).join('');
+function opener(ctx) {
+  if (ctx.alum && ctx.userSchoolShort) return `Hi ${ctx.firstName} — fellow ${ctx.userSchoolShort} alum here.`;
+  if (ctx.isTarget && ctx.company) return `Hi ${ctx.firstName} — long-time admirer of ${ctx.company}'s work.`;
+  if (ctx.isRecruiter) return `Hi ${ctx.firstName} — hope the week's treating you well.`;
+  if (ctx.isSenior && ctx.company) return `Hi ${ctx.firstName} — your path at ${ctx.company} stood out to me.`;
+  return `Hi ${ctx.firstName} —`;
 }
 
-function copyTemplate(id) {
-  const t = TEMPLATES.find(x => x.id === id);
-  navigator.clipboard.writeText(t.body(defaultCtx())).then(() => toast('Copied — paste & personalize.', 'success'));
+function identity(ctx) {
+  if (ctx.userPitch) return ctx.userPitch;
+  const name = ctx.userName ? `${ctx.userName}, ` : '';
+  const program = ctx.userSchool ? `finishing my ${ctx.userSchool}` : 'a grad student';
+  const focus = ctx.userFocus ? ` focused on ${ctx.userFocus}` : '';
+  return `I'm ${name}${program}${focus}.`;
+}
+
+function closingHook(ctx) {
+  if (ctx.isRecruiter) return `I'm targeting roles${ctx.userFocus ? ' in ' + ctx.userFocus : ''} — would love to connect for when something aligned opens up.`;
+  if (ctx.alum) return `Would love to connect and hear how you ended up at ${ctx.company || 'your team'}.`;
+  if (ctx.isTarget) return `Would love to connect and follow your work.`;
+  if (ctx.isSenior) return `Would love to connect — even just to learn from your trajectory.`;
+  return `Would love to connect and follow your work${ctx.company ? ' at ' + ctx.company : ''}.`;
+}
+
+function generateMessage(intent, conn, user) {
+  const ctx = connectionContext(conn, user);
+  const op = opener(ctx);
+  const me = identity(ctx);
+  const co = ctx.company || '[company]';
+
+  switch (intent) {
+    case 'connect':
+      return `${op} ${me} ${closingHook(ctx)}`;
+
+    case 'coffee_chat': {
+      const alumNote = ctx.alum && ctx.userSchoolShort ? ` Always good to chat with a fellow ${ctx.userSchoolShort}.` : '';
+      const hireWord = ctx.isRecruiter ? 'candidate' : ctx.isManager ? 'hire on your team' : 'hire';
+      return `Thanks for connecting, ${ctx.firstName}. ${me} I'm exploring full-time roles right now and I'm not asking you to refer me — I'd just value 15 minutes to hear how you ended up at ${co} and what you'd look for in a new ${hireWord} today.${alumNote} Free any time next week?`;
+    }
+
+    case 'thank_you_chat':
+      return `Thanks again for the time today, ${ctx.firstName}. Two things stuck with me: [SPECIFIC THING 1] and [SPECIFIC THING 2]. Going to dig into [topic they suggested] this week. Will keep you posted on the search — and if I can ever return the favor, just say the word.`;
+
+    case 'referral_ask': {
+      const alumLine = ctx.alum && ctx.userSchoolShort ? ` (good to know there are ${ctx.userSchoolShort} folks on your team)` : '';
+      return `${ctx.firstName} — based on our chat${alumLine}, I think the [role] on your team (req #XXXXX) lines up closely with my background${ctx.userFocus ? ' in ' + ctx.userFocus : ''}. Would you be open to passing my resume along internally? Happy to tailor anything if useful.`;
+    }
+
+    case 'recruiter_d7': {
+      const opener2 = ctx.alum && ctx.userSchoolShort
+        ? `Hi ${ctx.firstName} — fellow ${ctx.userSchoolShort} grad here, checking in on`
+        : `Hi ${ctx.firstName} — checking in on`;
+      return `${opener2} req #XXXXX for [role] at ${co}. [Referrer] on your team kindly passed my resume along last week. My background${ctx.userFocus ? ' in ' + ctx.userFocus : ''} maps closely to the JD's emphasis on [specific requirement]. Happy to share more or set up a call.`;
+    }
+
+    case 'hm_d14': {
+      const intro = ctx.alum && ctx.userSchoolShort ? `fellow ${ctx.userSchoolShort} grad here — ` : '';
+      return `Hi ${ctx.firstName} — ${intro}I applied to the [role] on your team (req #XXXXX) about two weeks ago and wanted to introduce myself directly. My work on [specific project] feels like a strong fit with what your team is building. Happy to send a 2-min Loom walkthrough if useful.`;
+    }
+
+    case 'nurture': {
+      const reason = ctx.alum && ctx.userSchoolShort
+        ? `we connected as fellow ${ctx.userSchoolShort} folks`
+        : `our chat about ${co}`;
+      return `Hi ${ctx.firstName} — quick update: [shipped X / read Y paper / went to Z conference]. Thought of you because of ${reason}. How are things at ${co}?`;
+    }
+
+    case 'post_interview':
+      return `${ctx.firstName} — really appreciated the conversation today. The discussion on [specific technical topic] got me thinking; will follow up with [thought / paper / data]. Excited about the possibility of working on [their team's problem]. Let me know if you need anything else from me.`;
+
+    default:
+      return `${op} ${me}`;
+  }
+}
+
+const INTENT_LIST = [
+  { id: 'connect',         name: 'Connection request',      when: 'First touch on LinkedIn — adapts to alum / target / cold' },
+  { id: 'coffee_chat',     name: 'Coffee chat ask',          when: 'Send 1-2 days after they accept your connection request' },
+  { id: 'thank_you_chat',  name: 'Thank-you after coffee',   when: 'Within 24 hrs of the call' },
+  { id: 'referral_ask',    name: 'Referral ask',             when: 'End of chat or as a follow-up' },
+  { id: 'recruiter_d7',    name: 'Recruiter D+7 follow-up',  when: '7 days after applying with a referral' },
+  { id: 'hm_d14',          name: 'Hiring manager D+14',      when: '14 days after applying, no response yet' },
+  { id: 'nurture',         name: 'Nurture check-in',         when: 'Every 3 weeks to keep referrers warm' },
+  { id: 'post_interview',  name: 'Post-interview thank-you', when: 'Within 24 hours of any interview' }
+];
+
+function intentForConnectionStatus(status) {
+  if (status === 'identified' || status === 'request_sent') return 'connect';
+  if (status === 'connected') return 'coffee_chat';
+  if (status === 'chat_scheduled') return 'coffee_chat';
+  if (status === 'chat_done') return 'thank_you_chat';
+  if (status === 'referred' || status === 'nurture') return 'nurture';
+  return 'coffee_chat';
+}
+
+function renderTemplates() {
+  // Two preview "personas" so you can see how the same intent reads
+  // for an alum at a target company vs. a cold senior contact.
+  const alumPersona = {
+    name: 'Jane Patel',
+    company: (state.settings.targets || '').split(',')[0].trim() || 'Acme Aerospace',
+    role: 'Senior Engineer',
+    school: state.settings.school || 'University of Michigan'
+  };
+  const coldPersona = {
+    name: 'John Smith',
+    company: 'NewCo Robotics',
+    role: 'Director of Engineering',
+    school: 'Different University'
+  };
+
+  const setupNote = (!state.settings.school || !state.settings.school_short)
+    ? `<div class="setup-note">💡 Tip: set your <strong>school</strong> and <strong>school short name</strong> in Settings — and add the <strong>school</strong> field to your connections — so alum detection works.</div>`
+    : '';
+
+  document.getElementById('templates-list').innerHTML = setupNote + INTENT_LIST.map(t => {
+    const alumBody = generateMessage(t.id, alumPersona, state.settings);
+    const coldBody = generateMessage(t.id, coldPersona, state.settings);
+    return `
+      <div class="template-card">
+        <h4>${escapeHTML(t.name)}</h4>
+        <div class="meta">${escapeHTML(t.when)}</div>
+        <div class="template-variant">
+          <div class="template-variant-label">If alum + target company →</div>
+          <div class="body">${escapeHTML(alumBody)}</div>
+          <button class="primary" onclick="copyText(this.previousElementSibling.textContent)">⎘ Copy alum version</button>
+        </div>
+        <div class="template-variant">
+          <div class="template-variant-label">If cold (no shared school, non-target) →</div>
+          <div class="body">${escapeHTML(coldBody)}</div>
+          <button onclick="copyText(this.previousElementSibling.textContent)">⎘ Copy cold version</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function copyText(text) {
+  navigator.clipboard.writeText(text).then(() => toast('Copied — review brackets, then send.', 'success'));
 }
 
 function openMessageFor(type, id) {
-  let template, ctx;
+  let body, targetLabel, intent;
   if (type === 'conn') {
     const c = state.conns.find(x => x.id === id);
     if (!c) return;
-    const firstName = (c.name || '').split(' ')[0];
-    ctx = {
-      ...defaultCtx(),
-      firstName,
-      company: c.company || 'your company',
-      team: c.role ? c.role.split(' ')[0] + ' team' : 'team',
-      targetRole: 'CFD Engineer'
-    };
-    if (c.status === 'identified') template = TEMPLATES.find(t => t.id === 'connect_alum') || TEMPLATES[0];
-    else if (c.status === 'connected') template = TEMPLATES.find(t => t.id === 'coffee_chat');
-    else if (c.status === 'chat_done') template = TEMPLATES.find(t => t.id === 'thank_you_chat');
-    else if (c.status === 'referred' || c.status === 'nurture') template = TEMPLATES.find(t => t.id === 'nurture_3wk');
-    else template = TEMPLATES.find(t => t.id === 'coffee_chat');
-    document.getElementById('msg-target').textContent = `${c.name} • ${c.company || ''} • ${c.role || ''}`;
+    intent = intentForConnectionStatus(c.status);
+    body = generateMessage(intent, c, state.settings);
+    const ctx = connectionContext(c, state.settings);
+    const tags = [];
+    if (ctx.alum) tags.push(`✓ ${ctx.userSchoolShort || 'school'} alum`);
+    if (ctx.isTarget) tags.push('✓ target company');
+    if (ctx.isRecruiter) tags.push('recruiter tone');
+    else if (ctx.isSenior) tags.push('senior contact');
+    targetLabel = `${c.name} • ${c.company || ''} • ${c.role || ''}` + (tags.length ? `  —  ${tags.join(' · ')}` : '');
   } else {
     const a = state.apps.find(x => x.id === id);
     if (!a) return;
-    ctx = {
-      ...defaultCtx(),
-      firstName: '[Recruiter / HM]',
-      company: a.company, role: a.role,
-      referrer: a.referrer || '[Referrer]'
-    };
-    template = a.referrer ? TEMPLATES.find(t => t.id === 'recruiter_d7') : TEMPLATES.find(t => t.id === 'hm_d14');
-    document.getElementById('msg-target').textContent = `${a.company} • ${a.role}`;
+    intent = a.referrer ? 'recruiter_d7' : 'hm_d14';
+    // Try to look up the referrer connection (so alum detection works)
+    let pseudoConn;
+    if (a.referrer) {
+      const match = state.conns.find(c => (c.name || '').toLowerCase() === a.referrer.toLowerCase());
+      pseudoConn = match || { name: a.referrer, company: a.company, role: 'Recruiter' };
+    } else {
+      pseudoConn = { name: '[Hiring Manager]', company: a.company, role: 'Hiring Manager' };
+    }
+    body = generateMessage(intent, pseudoConn, state.settings);
+    targetLabel = `${a.company} • ${a.role}`;
   }
-  currentMessageContext = { type, id };
-  document.getElementById('msg-body').value = template.body(ctx);
+  currentMessageContext = { type, id, intent };
+  document.getElementById('msg-target').textContent = targetLabel;
+  document.getElementById('msg-body').value = body;
   document.getElementById('modal-message').classList.add('active');
 }
 
@@ -1396,6 +1551,8 @@ document.querySelectorAll('.modal-overlay').forEach(m => m.addEventListener('cli
 function loadSettingsForm() {
   document.getElementById('set-name').value = state.settings.name || '';
   document.getElementById('set-school').value = state.settings.school || '';
+  const ssEl = document.getElementById('set-school-short');
+  if (ssEl) ssEl.value = state.settings.school_short || '';
   document.getElementById('set-focus').value = state.settings.focus || '';
   document.getElementById('set-pitch').value = state.settings.pitch || '';
   document.getElementById('set-targets').value = state.settings.targets || '';
@@ -1411,10 +1568,13 @@ async function saveSettings() {
   settingsSaveTimer = setTimeout(async () => {
     const appsGoalEl = document.getElementById('set-apps-goal');
     const msgGoalEl = document.getElementById('set-msg-goal');
+    const ssEl = document.getElementById('set-school-short');
+    const schoolFull = document.getElementById('set-school').value;
     const data = {
       owner_token: userToken,
       name: document.getElementById('set-name').value,
-      school: document.getElementById('set-school').value,
+      school: schoolFull,
+      school_short: (ssEl ? ssEl.value.trim() : '') || deriveSchoolShort(schoolFull),
       focus: document.getElementById('set-focus').value,
       pitch: document.getElementById('set-pitch').value,
       targets: document.getElementById('set-targets').value,
