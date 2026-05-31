@@ -12,7 +12,19 @@ let state = {
   apps: [],
   conns: [],
   feed: [],
-  settings: { name: '', school: '', focus: '', pitch: '', targets: '', daily_apps_goal: 25, daily_messages_goal: 10 }
+  settings: {
+    name: '',
+    school: '',
+    focus: '',
+    pitch: '',
+    targets: '',
+    daily_apps_goal: 25,
+    daily_messages_goal: 10,
+    resume_profile: null,
+    resume_library: null,
+    resume_draft: null,
+    resume_versions: []
+  }
 };
 let pendingResume = null; // {file_path, file_name} between upload and save
 let currentMessageContext = null;
@@ -225,6 +237,7 @@ function openView(name) {
   if (name === 'applications') renderApps();
   if (name === 'connections') renderConnections();
   if (name === 'templates') renderTemplates();
+  if (name === 'resume') window.JobResumeBuilder?.render();
   if (name === 'settings') loadSettingsForm();
   window.scrollTo(0, 0);
 }
@@ -884,6 +897,15 @@ function clearPendingResume() {
   const id = document.getElementById('modal-app').dataset.editId;
   const a = id ? state.apps.find(x => x.id === id) : null;
   renderResumeStatus(a);
+}
+
+function openResumeBuilderForApp() {
+  const company = document.getElementById('app-company')?.value.trim() || '';
+  const role = document.getElementById('app-role')?.value.trim() || '';
+  const jd = document.getElementById('app-notes')?.value.trim() || '';
+  closeModal('modal-app');
+  openView('resume');
+  setTimeout(() => window.JobResumeBuilder?.prefillTarget({ company, role, jd }), 0);
 }
 
 function resumePublicUrl(filePath) {
@@ -1964,16 +1986,21 @@ async function saveSettings() {
       daily_messages_goal: msgGoalEl ? (parseInt(msgGoalEl.value, 10) || 0) : (state.settings.daily_messages_goal ?? 10),
       resume_text: resumeEl ? resumeEl.value : (state.settings.resume_text || ''),
       jsearch_queries: queriesEl ? queriesEl.value : (state.settings.jsearch_queries || ''),
-      ats_slugs: slugsEl ? slugsEl.value : (state.settings.ats_slugs || '')
+      ats_slugs: slugsEl ? slugsEl.value : (state.settings.ats_slugs || ''),
+      resume_profile: state.settings.resume_profile || null,
+      resume_library: state.settings.resume_library || null,
+      resume_draft: state.settings.resume_draft || null,
+      resume_versions: state.settings.resume_versions || []
     };
     setSyncState('syncing');
     try {
       const { error } = await supabase.from('settings').upsert(data, { onConflict: 'owner_token' });
       if (error) throw error;
-      state.settings = data;
+      state.settings = { ...state.settings, ...data };
       setSyncState('online');
       toast('Saved.', 'success');
       renderDailyAccountability();
+      window.JobResumeBuilder?.render();
     } catch (e) {
       setSyncState('error');
       toast('Settings save failed: ' + e.message, 'error');
@@ -2019,6 +2046,15 @@ function importData(e) {
           const { error } = await supabase.from('connections').insert(chunk);
           if (error) throw error;
         }
+      }
+      if (data.settings) {
+        const settingsToImport = {
+          ...data.settings,
+          owner_token: userToken,
+          updated_at: undefined
+        };
+        const { error } = await supabase.from('settings').upsert(settingsToImport, { onConflict: 'owner_token' });
+        if (error) throw error;
       }
       await loadAll();
       setSyncState('online');

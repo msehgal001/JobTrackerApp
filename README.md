@@ -82,7 +82,7 @@ Two options:
 
 **Option A — drag and drop (easiest if you don't use git)**
 1. On the new empty repo page, click "uploading an existing file"
-2. Drag every file from this folder onto the page (index.html, app.js, styles.css, config.js, manifest.json, service-worker.js, icon-192.png, icon-512.png, supabase-schema.sql, README.md, .gitignore)
+2. Drag every file from this folder onto the page (index.html, app.js, resume-builder.js, styles.css, resume-builder.css, config.js, manifest.json, service-worker.js, icon-192.png, icon-512.png, supabase-schema.sql, README.md, .gitignore)
 3. Click "Commit changes"
 
 **Option B — git command line**
@@ -128,9 +128,24 @@ Both devices read and write to the same Supabase database, so they stay in sync.
 ### Daily workflow
 1. **Morning:** Open Dashboard. Do everything in "Overdue" first, then "Today".
 2. **Finding a job:** Add Job → paste the JD → review parsed fields → save
-3. **CSV import:** Connections → Upload LinkedIn CSV (export from LinkedIn Settings → Data Privacy → Get a copy of your data → Connections)
-4. **Outreach:** Click ✎ Message on any contact → personalize → copy → paste in LinkedIn/email
-5. **Status changes:** Edit any application or connection. The follow-up dates auto-recompute.
+3. **Tailoring a resume:** Resume Builder → choose the tracked job or paste Company/Role/JD → Analyze JD → drag bullets from the right rail into the resume → save a named version → export Word/PDF
+4. **CSV import:** Connections → Upload LinkedIn CSV (export from LinkedIn Settings → Data Privacy → Get a copy of your data → Connections)
+5. **Outreach:** Click ✎ Message on any contact → personalize → copy → paste in LinkedIn/email
+6. **Status changes:** Edit any application or connection. The follow-up dates auto-recompute.
+
+### Resume Builder
+
+The app includes a full resume-tailoring workspace:
+
+- Your Madhav Sehgal aerospace/CFD resume is the default template and starter content.
+- The center pane is an ATS-safe Times New Roman resume preview matching the uploaded resume template.
+- The right rail is a reusable bullet library. Drag individual bullets into any role, or drag a whole role/project block into the draft.
+- Paste a target company, role, and JD, then click **Analyze JD** to see keyword coverage, matched terms, missing terms, and per-bullet keyword badges.
+- Save tailored resumes as named versions. Versions store the full tailored draft while your base profile/library stay shared.
+- Export filenames follow `FirstNameLastName_Company_Role_YYYY-MM-DD`.
+- PDF export uses the browser print dialog so text stays selectable. Word export downloads a Word-openable `.doc` file from the static PWA.
+
+From any Application modal, use **▤ Build** in the "Resume used for this job" row to jump into Resume Builder with that company, role, and notes/JD prefilled.
 
 ### Follow-up rules (auto-computed)
 - Applied **with referral**: D+7 message recruiter → D+14 message hiring manager → D+21 archive
@@ -182,6 +197,17 @@ If you set up the tracker before this release, run the **v2.1 MIGRATION** block 
 
 If you skip this step, saving applications will fail with a "column does not exist" error.
 
+## Upgrading to v2.6 (integrated resume builder)
+
+Run the migration section in `supabase-schema.sql` again. It is idempotent and adds four token-scoped JSON columns to `settings`:
+
+- `resume_profile`
+- `resume_library`
+- `resume_draft`
+- `resume_versions`
+
+These power the new Resume Builder view and keep your tailored versions synced across devices.
+
 ## Daily Jobs Feed (optional, GitHub Actions cron)
 
 If you want the Dashboard's "Fresh jobs — last 24h" panel to populate every morning automatically, set up the daily fetch workflow.
@@ -220,7 +246,9 @@ Every Sunday: open Settings → Export. Save the JSON file somewhere safe (Drive
 ```
 index.html             ← App shell
 styles.css             ← All styling
+resume-builder.css     ← Resume Builder styling + print stylesheet
 app.js                 ← All logic + Supabase sync
+resume-builder.js      ← Resume Builder logic, JD keyword analysis, versions, Word/PDF export
 config.js              ← Your Supabase URL + anon key (edit this once)
 manifest.json          ← PWA install metadata
 service-worker.js      ← Offline caching

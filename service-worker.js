@@ -4,12 +4,14 @@
 // network (or queued for next online sync, which Supabase handles).
 // ============================================================
 
-const CACHE_VERSION = 'job-command-v2.5.0';
+const CACHE_VERSION = 'job-command-v2.6.0';
 const CORE_ASSETS = [
   './',
   './index.html',
   './styles.css',
+  './resume-builder.css',
   './app.js',
+  './resume-builder.js',
   './config.js',
   './manifest.json',
   './icon-192.png',

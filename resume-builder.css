@@ -1,0 +1,506 @@
+/* ===== RESUME BUILDER ===== */
+.rb-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 8.5in) minmax(320px, 420px);
+  gap: 22px;
+  align-items: start;
+}
+
+.rb-center,
+.rb-library,
+.rb-command,
+.rb-target-panel {
+  min-width: 0;
+}
+
+.rb-command,
+.rb-target-panel,
+.rb-library {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.rb-command {
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.rb-target-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.2fr;
+  gap: 12px;
+}
+
+.rb-actions,
+.rb-side-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.rb-version-bar {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.rb-version-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--accent-2);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 8px;
+}
+
+.rb-version-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rb-version-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+}
+
+.rb-version-row.active {
+  border-color: var(--accent);
+}
+
+.rb-version-row button:first-child {
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rb-version-row span,
+.rb-version-empty {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-faint);
+}
+
+.rb-target-panel {
+  padding: 14px;
+  margin-bottom: 16px;
+}
+
+.rb-jd-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.rb-jd-head strong {
+  display: block;
+}
+
+.rb-jd-head span {
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+#rb-jd {
+  min-height: 132px;
+}
+
+.rb-analysis {
+  margin-top: 12px;
+}
+
+.rb-analysis:empty {
+  display: none;
+}
+
+.rb-score {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.rb-score strong {
+  color: var(--green);
+  font-size: 22px;
+}
+
+.rb-chip-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.rb-chip-row b {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  min-width: 54px;
+}
+
+.rb-chip {
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.rb-chip.hit {
+  color: var(--green);
+  border-color: rgba(74, 222, 128, 0.45);
+  background: rgba(74, 222, 128, 0.08);
+}
+
+.rb-chip.miss {
+  color: var(--red);
+  border-color: rgba(248, 113, 113, 0.45);
+  background: rgba(248, 113, 113, 0.08);
+}
+
+.rb-paper-wrap {
+  overflow-x: auto;
+  padding-bottom: 16px;
+}
+
+.rb-paper {
+  width: 8.5in;
+  min-height: 11in;
+  background: #fff;
+  color: #000;
+  padding: 0.5in;
+  font-family: "Times New Roman", Times, serif;
+  font-size: 10.5pt;
+  line-height: 1.08;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.38);
+}
+
+.rb-resume-head {
+  text-align: center;
+  margin-bottom: 7pt;
+}
+
+.rb-name {
+  font-size: 19pt;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.rb-contact {
+  font-size: 11pt;
+  margin-top: 2pt;
+}
+
+.rb-linkish {
+  color: #1155cc;
+}
+
+.rb-section {
+  margin-top: 7pt;
+}
+
+.rb-section-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1pt solid #000;
+  font-weight: bold;
+  text-transform: uppercase;
+  color: #000;
+  line-height: 1.1;
+  margin-bottom: 4pt;
+}
+
+.rb-item {
+  position: relative;
+  margin-top: 4pt;
+}
+
+.rb-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.rb-row > span:last-child {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.rb-bold {
+  font-weight: bold;
+}
+
+.rb-degree b,
+.rb-bullet b {
+  font-weight: bold;
+}
+
+.rb-detail,
+.rb-summary,
+.rb-skill-line {
+  display: block;
+}
+
+.rb-bullets {
+  list-style: disc;
+  margin: 2pt 0 0 16pt;
+  padding: 0;
+}
+
+.rb-bullet-wrap {
+  position: relative;
+  padding-left: 0;
+  margin-bottom: 1pt;
+}
+
+.rb-bullet {
+  outline: none;
+}
+
+.rb-bullet:focus,
+.rb-paper [contenteditable]:focus {
+  background: #fff7cc;
+  outline: 1px dashed #c08400;
+}
+
+.rb-empty-note,
+.rb-role-drop {
+  color: #777;
+  font-style: italic;
+}
+
+.rb-role-drop {
+  border: 1px dashed #aaa;
+  padding: 6px;
+  margin-top: 5px;
+  text-align: center;
+}
+
+.rb-item-tools {
+  position: absolute;
+  right: 0;
+  top: -18px;
+  display: none;
+  gap: 4px;
+}
+
+.rb-item:hover .rb-item-tools {
+  display: flex;
+}
+
+.rb-mini,
+.rb-kw-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  line-height: 1;
+  padding: 2px 5px;
+}
+
+.rb-kw-badge {
+  display: inline-block;
+  margin-left: 5px;
+  color: #166534;
+  border: 1px solid #86efac;
+  border-radius: 999px;
+}
+
+.rb-grip {
+  color: #999;
+  cursor: grab;
+  margin-right: 4px;
+}
+
+.rb-skill-cat {
+  font-weight: bold;
+}
+
+.rb-library {
+  position: sticky;
+  top: 16px;
+  padding: 16px;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+}
+
+.rb-side-head {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.rb-side-head h3 {
+  font-size: 18px;
+}
+
+.rb-lib-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.rb-lib-group {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+}
+
+.rb-lib-title {
+  font-weight: 700;
+  font-size: 13px;
+  margin-bottom: 8px;
+  cursor: grab;
+}
+
+.rb-lib-bullet {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px;
+  padding: 8px;
+  margin-top: 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-elev);
+  font-size: 12px;
+  line-height: 1.35;
+  cursor: grab;
+}
+
+.rb-lib-bullet.used {
+  opacity: 0.46;
+}
+
+.rb-source-edit,
+.rb-data-edit {
+  margin-top: 10px;
+  color: var(--text-dim);
+}
+
+.rb-source-edit summary,
+.rb-data-edit summary {
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.rb-source-edit label,
+.rb-profile-edit label {
+  margin-top: 8px;
+}
+
+.rb-source-edit input,
+.rb-profile-edit input {
+  font-size: 13px;
+  padding: 7px 8px;
+}
+
+.rb-source-bullet {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.rb-source-rich {
+  min-height: 42px;
+  padding: 8px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 12px;
+  outline: none;
+}
+
+.rb-two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.rb-profile-edit {
+  margin-top: 10px;
+}
+
+[contenteditable][data-placeholder]:empty::before {
+  content: attr(data-placeholder);
+  color: #999;
+}
+
+@media (max-width: 1200px) {
+  .rb-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .rb-library {
+    position: static;
+    max-height: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .rb-target-grid,
+  .rb-two {
+    grid-template-columns: 1fr;
+  }
+
+  .rb-paper {
+    width: 100%;
+    min-width: 7.4in;
+    padding: 0.38in;
+  }
+}
+
+@media print {
+  body.rb-printing * {
+    visibility: hidden !important;
+  }
+
+  body.rb-printing #rb-paper,
+  body.rb-printing #rb-paper * {
+    visibility: visible !important;
+  }
+
+  body.rb-printing #rb-paper {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: auto;
+    min-height: auto;
+    box-shadow: none;
+    padding: 0.5in;
+  }
+
+  body.rb-printing .no-print,
+  body.rb-printing .rb-item-tools,
+  body.rb-printing .rb-mini,
+  body.rb-printing .rb-grip,
+  body.rb-printing .rb-kw-badge,
+  body.rb-printing .rb-role-drop {
+    display: none !important;
+  }
+
+  @page {
+    size: letter;
+    margin: 0;
+  }
+}

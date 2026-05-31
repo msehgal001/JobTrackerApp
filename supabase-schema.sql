@@ -153,6 +153,15 @@ alter table settings add column if not exists resume_text text;
 alter table settings add column if not exists jsearch_queries text;
 alter table settings add column if not exists ats_slugs text;
 
+-- v2.6: integrated resume builder
+-- Stored on the existing token-scoped settings row so the static PWA can
+-- sync resume profile data, reusable bullet library, current draft, and
+-- saved tailored versions without a separate backend.
+alter table settings add column if not exists resume_profile jsonb;
+alter table settings add column if not exists resume_library jsonb;
+alter table settings add column if not exists resume_draft jsonb;
+alter table settings add column if not exists resume_versions jsonb default '[]'::jsonb;
+
 create table if not exists jobs_feed (
   id uuid primary key default uuid_generate_v4(),
   owner_token text not null,
