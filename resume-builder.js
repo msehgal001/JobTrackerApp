@@ -926,47 +926,87 @@
     return `${first}${last}_${co}_${role}_${today()}.${ext}`;
   }
 
+  // Build clean, self-contained resume HTML from the MODEL (not the live DOM),
+  // so app classes / contenteditable / flexbox can't leak into the output.
+  // `forWord` adds MS-Word page setup; otherwise it's for the print iframe.
+  function buildResumeHTML(forWord) {
+    const p = model.profile;
+    const d = model.draft;
+    const fpt = d.fontPt || 10.5;
+    const esc = escapeText;
+    const row = (left, right, bold) => {
+      const bs = bold ? 'font-weight:bold;' : '';
+      return '<table style="width:100%;border-collapse:collapse;margin:0;table-layout:fixed"><tr>' +
+        '<td style="text-align:left;padding:0;' + bs + '">' + (left || '') + '</td>' +
+        '<td style="text-align:right;white-space:nowrap;padding:0;width:34%;' + bs + '">' + (right || '') + '</td></tr></table>';
+    };
+    const heading = (t) => '<p style="font-weight:bold;text-transform:uppercase;border-bottom:1px solid #000;font-size:' + fpt + 'pt;margin:8pt 0 3pt 0">' + t + '</p>';
+    const bullets = (arr) => (arr && arr.length)
+      ? '<ul style="margin:2pt 0 0 0.26in;padding:0">' + arr.map((b) => '<li style="margin:0 0 1pt 0;font-size:' + fpt + 'pt">' + (b.text || '') + '</li>').join('') + '</ul>'
+      : '';
+
+    let body = '';
+    body += '<p style="text-align:center;font-size:19pt;margin:0;text-transform:uppercase">' + esc(((p.firstName || '') + ' ' + (p.lastName || '')).trim()) + '</p>';
+    const cps = contactParts(p).map((c) => c.link ? '<span style="color:#1155cc">' + esc(c.text) + '</span>' : esc(c.text)).join(' &bull; ');
+    body += '<p style="text-align:center;font-size:11pt;margin:2pt 0 0 0">' + cps + '</p>';
+
+    if ((p.education || []).length) {
+      body += heading('Education');
+      p.education.forEach((e) => {
+        body += row(esc(e.school), esc(e.location), true) + row(esc(e.degree), esc(e.dates), false);
+        (e.details || []).forEach((x) => { if (x) body += '<p style="margin:0;font-size:' + fpt + 'pt">' + esc(x) + '</p>'; });
+      });
+    }
+    if (d.includeSummary && d.summaryText) {
+      body += heading('Summary') + '<p style="margin:0;font-size:' + fpt + 'pt">' + d.summaryText + '</p>';
+    }
+    if ((d.experience || []).length) {
+      body += heading('Experience');
+      d.experience.forEach((it) => { body += row(esc(it.company), esc(it.location), true) + row(esc(it.title), esc(it.dates), false) + bullets(it.bullets); });
+    }
+    if ((d.projects || []).length) {
+      body += heading('Project');
+      d.projects.forEach((it) => { body += row(esc(it.name), esc(it.org), true) + row(esc(it.subtitle), esc(it.dates), false) + bullets(it.bullets); });
+    }
+    if ((d.skills || []).length) {
+      body += heading('Skills');
+      d.skills.forEach((g) => { body += '<p style="margin:0 0 1pt 0;font-size:' + fpt + 'pt"><b>' + esc(g.category) + ':</b> ' + esc((g.items || []).join(', ')) + '</p>'; });
+    }
+
+    if (forWord) {
+      return '<!doctype html><html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8">' +
+        '<style>@page Section1 { size:8.5in 11.0in; margin:0.5in; } div.Section1 { page:Section1; } ' +
+        'body,p,td,li,span,div { font-family:\'Times New Roman\',serif; } p { line-height:1.12; } </style></head>' +
+        '<body><div class="Section1" style="font-size:' + fpt + 'pt;color:#000">' + body + '</div></body></html>';
+    }
+    return '<!doctype html><html><head><meta charset="utf-8">' +
+      '<style>@page { size:letter; margin:0.5in; } html,body{margin:0;padding:0;background:#fff;color:#000;font-family:\'Times New Roman\',serif;font-size:' + fpt + 'pt;line-height:1.12} p{margin:0} </style></head>' +
+      '<body>' + body + '</body></html>';
+  }
+
   function exportWord() {
-    const clone = $('#rb-paper').cloneNode(true);
-    clone.style.zoom = '';
-    clone.querySelectorAll('.no-print, .rb-item-tools, .rb-grip, .rb-mini, .rb-kw-badge, .rb-role-drop, .rb-empty-note').forEach((n) => n.remove());
-    // Word ignores flexbox: convert the two-column rows to tables so the
-    // right-hand location/date column aligns properly.
-    clone.querySelectorAll('.rb-row').forEach((row) => {
-      const kids = Array.from(row.children);
-      if (kids.length < 2) return;
-      const bold = row.classList.contains('rb-bold') ? 'font-weight:bold;' : '';
-      const table = document.createElement('table');
-      table.setAttribute('style', 'width:100%;border-collapse:collapse;margin:0');
-      table.innerHTML = '<tr><td style="text-align:left;' + bold + '">' + kids[0].innerHTML +
-        '</td><td style="text-align:right;white-space:nowrap;' + bold + '">' + kids[kids.length - 1].innerHTML + '</td></tr>';
-      row.replaceWith(table);
-    });
-    const html = '<!doctype html><html><head><meta charset="utf-8"><style>' + wordCSS() + '</style></head><body>' + clone.outerHTML + '</body></html>';
+    const html = buildResumeHTML(true);
     download(new Blob(['\ufeff', html], { type: 'application/msword' }), buildFilename('doc'));
   }
 
+  // Print a clean white iframe containing ONLY the resume \u2014 no dark app
+  // background, no extra blank pages.
   function exportPDF() {
-    const paper = $('#rb-paper');
-    const savedZoom = paper ? paper.style.zoom : '';
-    if (paper) paper.style.zoom = ''; // print at true 8.5in, not the fit-to-screen zoom
-    document.body.classList.add('rb-printing');
-    const title = document.title;
-    document.title = buildFilename('pdf').replace(/\.pdf$/, '');
-    setTimeout(() => {
-      window.print();
-      setTimeout(() => {
-        document.body.classList.remove('rb-printing');
-        document.title = title;
-        if (paper) paper.style.zoom = savedZoom;
-        fitPaper();
-      }, 500);
-    }, 80);
-  }
-
-  function wordCSS() {
-    const fpt = (model.draft.fontPt || 10.5);
-    return '.rb-paper{font-family:"Times New Roman",serif;color:#000;font-size:' + fpt + 'pt;line-height:1.08}.rb-resume-head{text-align:center}.rb-name{font-size:19pt;text-transform:uppercase}.rb-contact{font-size:11pt}.rb-linkish{color:#1155cc}.rb-section{margin-top:7pt}.rb-section-title{font-weight:bold;border-bottom:1pt solid #000;text-transform:uppercase}.rb-row{display:flex;justify-content:space-between}.rb-bold{font-weight:bold}.rb-bullets{margin:2pt 0 0 18pt;padding:0}.rb-bullet{display:inline}.rb-item{margin-top:4pt}.rb-skill-cat{font-weight:bold}.no-print,.rb-item-tools,.rb-grip,.rb-mini,.rb-kw-badge,.rb-role-drop{display:none!important}';
+    const html = buildResumeHTML(false).replace('<head>', '<head><title>' + buildFilename('pdf').replace(/\.pdf$/, '') + '</title>');
+    const iframe = document.createElement('iframe');
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
+    document.body.appendChild(iframe);
+    const idoc = iframe.contentWindow.document;
+    idoc.open(); idoc.write(html); idoc.close();
+    let printed = false;
+    const go = () => {
+      if (printed) return; printed = true;
+      try { iframe.contentWindow.focus(); iframe.contentWindow.print(); } catch (e) {}
+      setTimeout(() => iframe.remove(), 2000);
+    };
+    iframe.onload = go;
+    setTimeout(go, 400); // fallback if onload doesn't fire for a written doc
   }
 
   function download(blob, name) {
