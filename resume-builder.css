@@ -38,7 +38,55 @@
   gap: 8px;
   flex-wrap: wrap;
   margin-top: 12px;
+  align-items: center;
 }
+
+/* font-size stepper */
+.rb-font-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px;
+}
+.rb-font-step button {
+  min-width: 30px;
+  padding: 4px 6px;
+  font-weight: 700;
+}
+.rb-font-step span {
+  min-width: 42px;
+  text-align: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+/* local-only / migration notice */
+.rb-sync-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 107, 53, 0.5);
+  background: rgba(255, 107, 53, 0.1);
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.rb-sync-notice .rb-mini {
+  flex-shrink: 0;
+  border: 1px solid var(--accent, #ff6b35);
+  color: var(--accent, #ff6b35);
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  background: transparent;
+}
+.rb-sync-notice.hidden { display: none; }
 
 .rb-version-bar {
   margin-top: 14px;

@@ -4,7 +4,7 @@
 // network (or queued for next online sync, which Supabase handles).
 // ============================================================
 
-const CACHE_VERSION = 'job-command-v2.6.0';
+const CACHE_VERSION = 'job-command-v2.6.1';
 const CORE_ASSETS = [
   './',
   './index.html',
@@ -38,7 +38,8 @@ self.addEventListener('activate', (event) => {
 // Fetch strategy:
 //   - Supabase API calls: network-only (data must be fresh)
 //   - Fonts CDN: cache-first
-//   - Same-origin: cache-first, fall back to network, fall back to cached index
+//   - Same-origin (our HTML/JS/CSS): NETWORK-FIRST so deploys take effect
+//     immediately when online; falls back to cache offline.
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   const url = new URL(req.url);
@@ -68,25 +69,17 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Same-origin: cache-first with network fallback
+  // Same-origin: network-first so updated code is served as soon as it deploys;
+  // cache is updated on every successful fetch and used only when offline.
   if (url.origin === self.location.origin) {
     event.respondWith(
-      caches.match(req).then((hit) => {
-        if (hit) {
-          // Refresh in background
-          fetch(req).then((res) => {
-            if (res.ok) caches.open(CACHE_VERSION).then((cache) => cache.put(req, res));
-          }).catch(() => {});
-          return hit;
+      fetch(req).then((res) => {
+        if (res.ok) {
+          const clone = res.clone();
+          caches.open(CACHE_VERSION).then((cache) => cache.put(req, clone));
         }
-        return fetch(req).then((res) => {
-          if (res.ok) {
-            const clone = res.clone();
-            caches.open(CACHE_VERSION).then((cache) => cache.put(req, clone));
-          }
-          return res;
-        }).catch(() => caches.match('./index.html'));
-      })
+        return res;
+      }).catch(() => caches.match(req).then((hit) => hit || caches.match('./index.html')))
     );
   }
 });

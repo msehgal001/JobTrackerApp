@@ -151,13 +151,26 @@
     return walk(src).replace(/&nbsp;/g, ' ').replace(/(<br>){3,}/g, '<br><br>').trim();
   }
 
+  // ---- local-first persistence (works even before the v2.6 SQL migration) ----
+  let cloudResumeDisabled = false; // flips true if the resume_* columns are missing
+  let migrationNoticeShown = false;
+  function lsKey() { return 'jrb_resume_' + (userToken || 'local'); }
+  function loadLocal() { try { return JSON.parse(localStorage.getItem(lsKey()) || 'null'); } catch (e) { return null; } }
+  function saveLocal(m) {
+    try { localStorage.setItem(lsKey(), JSON.stringify({ profile: m.profile, library: m.library, draft: m.draft, versions: m.versions })); } catch (e) {}
+  }
+
   function ensureModel() {
     if (model) return model;
     const s = state.settings || {};
-    const profile = s.resume_profile || clone(DEFAULT_PROFILE);
-    const library = s.resume_library || clone(DEFAULT_LIBRARY);
-    const draft = s.resume_draft || defaultDraft(library, profile);
-    const versions = Array.isArray(s.resume_versions) ? s.resume_versions : [];
+    const local = loadLocal() || {};
+    // Cloud (Supabase) wins when the columns exist and hold data; otherwise fall
+    // back to this device's localStorage; otherwise the seeded default resume.
+    const profile = s.resume_profile || local.profile || clone(DEFAULT_PROFILE);
+    const library = s.resume_library || local.library || clone(DEFAULT_LIBRARY);
+    const draft = s.resume_draft || local.draft || defaultDraft(library, profile);
+    const cloudVersions = Array.isArray(s.resume_versions) && s.resume_versions.length ? s.resume_versions : null;
+    const versions = cloudVersions || (Array.isArray(local.versions) ? local.versions : []);
     model = { profile, library, draft, versions };
     ensureDraftShape(model.draft);
     return model;
@@ -196,15 +209,35 @@
     d.projects = d.projects || [];
     d.skills = d.skills || [];
     d.jobDescription = d.jobDescription || '';
+    if (typeof d.fontPt !== 'number') d.fontPt = 10.5;
+  }
+
+  const MIGRATION_SQL = [
+    "alter table settings add column if not exists resume_profile jsonb;",
+    "alter table settings add column if not exists resume_library jsonb;",
+    "alter table settings add column if not exists resume_draft jsonb;",
+    "alter table settings add column if not exists resume_versions jsonb default '[]'::jsonb;",
+    "notify pgrst, 'reload schema';"
+  ].join('\n');
+
+  function isSchemaError(error) {
+    if (!error) return false;
+    if (error.code === 'PGRST204' || error.code === '42703') return true;
+    return /schema cache|could not find the .* column|column .* does not exist/i.test(error.message || '');
   }
 
   async function saveNow(silent = false) {
     const m = ensureModel();
+    // mirror into in-memory settings + always persist locally (never fails)
     state.settings.resume_profile = m.profile;
     state.settings.resume_library = m.library;
     state.settings.resume_draft = m.draft;
     state.settings.resume_versions = m.versions;
-    if (!supabase || !userToken) return;
+    saveLocal(m);
+    if (!supabase || !userToken || cloudResumeDisabled) {
+      if (!silent && !cloudResumeDisabled) toast('Resume saved on this device.', 'success');
+      return;
+    }
     setSyncState('syncing');
     const payload = {
       owner_token: userToken,
@@ -215,12 +248,28 @@
     };
     const { error } = await supabase.from('settings').upsert(payload, { onConflict: 'owner_token' });
     if (error) {
+      if (isSchemaError(error)) {
+        // DB hasn't had the v2.6 migration applied — keep working locally.
+        cloudResumeDisabled = true;
+        setSyncState('online');
+        showMigrationNotice();
+        return;
+      }
       setSyncState('error');
-      toast('Resume save failed: ' + error.message, 'error');
+      toast('Resume cloud sync failed: ' + error.message + ' (saved on this device)', 'error');
       return;
     }
     setSyncState('online');
     if (!silent) toast('Resume saved.', 'success');
+  }
+
+  function showMigrationNotice() {
+    const el = $('#rb-sync-notice');
+    if (el) el.classList.remove('hidden');
+    if (!migrationNoticeShown) {
+      migrationNoticeShown = true;
+      toast('Resume saved on this device. Run the SQL in the orange banner to enable cloud sync.', 'success');
+    }
   }
 
   function scheduleSave() {
@@ -337,6 +386,10 @@
     const d = model.draft;
     const appOptions = (state.apps || []).map((a) => h('option', { value: a.id }, `${a.company} - ${a.role}`));
     return h('div', { class: 'rb-command' },
+      h('div', { id: 'rb-sync-notice', class: 'rb-sync-notice' + (cloudResumeDisabled ? '' : ' hidden') },
+        h('div', {}, h('strong', {}, 'Saved on this device. '), 'To sync resumes across all devices, run this once in Supabase → SQL Editor:'),
+        h('button', { class: 'rb-mini', onclick: () => { copyText(MIGRATION_SQL); toast('Migration SQL copied — paste it into the Supabase SQL editor and Run.', 'success'); } }, 'Copy SQL')
+      ),
       h('div', { class: 'rb-target-grid' },
         h('label', {}, 'Company', h('input', { id: 'rb-company', value: d.targetCompany || '', oninput: (e) => { d.targetCompany = e.target.value; scheduleSave(); renderVersionLabel(); } })),
         h('label', {}, 'Role', h('input', { id: 'rb-role', value: d.targetRole || '', oninput: (e) => { d.targetRole = e.target.value; scheduleSave(); renderVersionLabel(); } })),
@@ -346,6 +399,11 @@
       h('div', { class: 'rb-actions' },
         h('button', { class: 'primary', onclick: saveVersionNew }, '+ Save version'),
         h('button', { onclick: updateCurrentVersion }, 'Update'),
+        h('div', { class: 'rb-font-step', title: 'Resume font size' },
+          h('button', { onclick: () => setFontPt(-0.5) }, 'A−'),
+          h('span', { id: 'rb-font-label' }, (d.fontPt || 10.5) + 'pt'),
+          h('button', { onclick: () => setFontPt(0.5) }, 'A+')
+        ),
         h('button', { onclick: exportWord }, 'Word'),
         h('button', { onclick: exportPDF }, 'PDF')
       ),
@@ -354,6 +412,17 @@
         h('div', { id: 'rb-version-list', class: 'rb-version-list' })
       )
     );
+  }
+
+  function setFontPt(delta) {
+    const d = model.draft;
+    d.fontPt = Math.round(Math.min(14, Math.max(8, (d.fontPt || 10.5) + delta)) * 2) / 2;
+    const paper = $('#rb-paper');
+    if (paper) paper.style.fontSize = d.fontPt + 'pt';
+    const lbl = $('#rb-font-label');
+    if (lbl) lbl.textContent = d.fontPt + 'pt';
+    scheduleSave();
+    fitPaper();
   }
 
   function renderTargetPanel() {
@@ -372,7 +441,7 @@
     const p = model.profile;
     const d = model.draft;
     return h('div', { class: 'rb-paper-wrap' },
-      h('div', { id: 'rb-paper', class: 'rb-paper' },
+      h('div', { id: 'rb-paper', class: 'rb-paper', style: 'font-size:' + (d.fontPt || 10.5) + 'pt' },
         h('header', { class: 'rb-resume-head' },
           h('div', { class: 'rb-name' }, `${p.firstName || ''} ${p.lastName || ''}`.trim().toUpperCase() || 'YOUR NAME'),
           h('div', { class: 'rb-contact' }, contactParts(p).map((c, i) => h('span', { class: c.link ? 'rb-linkish' : '' }, (i ? ' • ' : '') + c.text)))
@@ -896,7 +965,8 @@
   }
 
   function wordCSS() {
-    return '.rb-paper{font-family:"Times New Roman",serif;color:#000;font-size:10.5pt;line-height:1.08}.rb-resume-head{text-align:center}.rb-name{font-size:19pt;text-transform:uppercase}.rb-contact{font-size:11pt}.rb-linkish{color:#1155cc}.rb-section{margin-top:7pt}.rb-section-title{font-weight:bold;border-bottom:1pt solid #000;text-transform:uppercase}.rb-row{display:flex;justify-content:space-between}.rb-bold{font-weight:bold}.rb-bullets{margin:2pt 0 0 18pt;padding:0}.rb-bullet{display:inline}.rb-item{margin-top:4pt}.rb-skill-cat{font-weight:bold}.no-print,.rb-item-tools,.rb-grip,.rb-mini,.rb-kw-badge,.rb-role-drop{display:none!important}';
+    const fpt = (model.draft.fontPt || 10.5);
+    return '.rb-paper{font-family:"Times New Roman",serif;color:#000;font-size:' + fpt + 'pt;line-height:1.08}.rb-resume-head{text-align:center}.rb-name{font-size:19pt;text-transform:uppercase}.rb-contact{font-size:11pt}.rb-linkish{color:#1155cc}.rb-section{margin-top:7pt}.rb-section-title{font-weight:bold;border-bottom:1pt solid #000;text-transform:uppercase}.rb-row{display:flex;justify-content:space-between}.rb-bold{font-weight:bold}.rb-bullets{margin:2pt 0 0 18pt;padding:0}.rb-bullet{display:inline}.rb-item{margin-top:4pt}.rb-skill-cat{font-weight:bold}.no-print,.rb-item-tools,.rb-grip,.rb-mini,.rb-kw-badge,.rb-role-drop{display:none!important}';
   }
 
   function download(blob, name) {
