@@ -128,19 +128,27 @@
     return div.textContent || div.innerText || '';
   }
 
+  // Keep only bold/italic/underline; preserve nesting; unwrap everything else.
+  const RICH_TAGS = { B: 'b', STRONG: 'b', I: 'i', EM: 'i', U: 'u' };
+  function escapeText(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
   function sanitizeRich(html) {
-    const template = document.createElement('template');
-    template.innerHTML = html || '';
-    template.content.querySelectorAll('*').forEach((node) => {
-      if (node.tagName !== 'B' && node.tagName !== 'STRONG') node.replaceWith(document.createTextNode(node.textContent || ''));
-      else node.replaceWith(h('b', {}, node.textContent || ''));
-    });
-    return template.innerHTML
-      .replace(/<div><br><\/div>/g, '<br>')
-      .replace(/<div>/g, '<br>')
-      .replace(/<\/div>/g, '')
-      .replace(/&nbsp;/g, ' ')
-      .trim();
+    const src = document.createElement('div');
+    src.innerHTML = html || '';
+    const walk = (node) => {
+      let out = '';
+      node.childNodes.forEach((c) => {
+        if (c.nodeType === 3) { out += escapeText(c.nodeValue); return; }
+        if (c.nodeType !== 1) return;
+        if (c.tagName === 'BR') { out += '<br>'; return; }
+        const inner = walk(c);
+        const tag = RICH_TAGS[c.tagName];
+        if (tag) { out += inner ? `<${tag}>${inner}</${tag}>` : ''; }
+        else if (c.tagName === 'DIV' || c.tagName === 'P') { out += (out && !out.endsWith('<br>') ? '<br>' : '') + inner; }
+        else out += inner;
+      });
+      return out;
+    };
+    return walk(src).replace(/&nbsp;/g, ' ').replace(/(<br>){3,}/g, '<br><br>').trim();
   }
 
   function ensureModel() {
@@ -225,6 +233,9 @@
     if (rich) el.innerHTML = sanitizeRich(value || '');
     else el.textContent = value || '';
     el.addEventListener('blur', () => onSave(rich ? sanitizeRich(el.innerHTML) : el.textContent.trim()));
+    // Rich fields also persist on input so toolbar/keyboard formatting is saved
+    // immediately (execCommand fires an 'input' event) without waiting for blur.
+    if (rich) el.addEventListener('input', () => onSave(sanitizeRich(el.innerHTML)));
     el.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !rich) { e.preventDefault(); el.blur(); }
     });
@@ -235,6 +246,7 @@
     const root = $('#resume-builder-root');
     if (!root) return;
     ensureModel();
+    ensureFormatToolbar();
     root.innerHTML = '';
     root.append(
       h('div', { class: 'rb-shell' },
@@ -244,6 +256,81 @@
     );
     renderVersionList();
     decorateAnalysis();
+    const paper = $('#rb-paper');
+    if (paper) paper.addEventListener('input', debouncedFit);
+    fitPaper();
+  }
+
+  // --- fit the fixed 8.5in page into whatever width the column gives us ---
+  // Uses CSS `zoom` (not transform) so the layout box shrinks too: the column
+  // sizes correctly, nothing overlaps the library, and the caret stays accurate.
+  let fitInstalled = false;
+  const PAGE_W = 816; // 8.5in at the CSS-fixed 96px/in
+  function fitPaper() {
+    const wrap = $('.rb-paper-wrap');
+    const paper = $('#rb-paper');
+    if (!wrap || !paper) return;
+    // wrap.clientWidth is the (un-zoomed) column width; compare to the fixed page width.
+    const scale = Math.min(1, wrap.clientWidth / PAGE_W);
+    paper.style.zoom = scale < 0.995 ? String(scale) : '';
+    if (!fitInstalled) { fitInstalled = true; window.addEventListener('resize', debouncedFit); }
+  }
+  let fitTimer = null;
+  function debouncedFit() { clearTimeout(fitTimer); fitTimer = setTimeout(fitPaper, 120); }
+
+  // --- text formatting toolbar (bold / italic / underline) ---
+  let activeRich = null;
+  const RICH_SEL = '.rb-bullet, .rb-summary, .rb-source-rich';
+  function ensureFormatToolbar() {
+    if (document.getElementById('rb-fmt-bar')) return;
+    const mkBtn = (label, cmd, title, cls) => h('button', {
+      class: 'rb-fmt-btn ' + (cls || ''), title,
+      onmousedown: (e) => { e.preventDefault(); },
+      onclick: () => applyFormat(cmd)
+    }, label);
+    const bar = h('div', { id: 'rb-fmt-bar', class: 'rb-fmt-bar' },
+      mkBtn('B', 'bold', 'Bold (⌘/Ctrl+B)', 'rb-fmt-bold'),
+      mkBtn('I', 'italic', 'Italic (⌘/Ctrl+I)', 'rb-fmt-ital'),
+      mkBtn('U', 'underline', 'Underline (⌘/Ctrl+U)', 'rb-fmt-und'),
+      h('span', { class: 'rb-fmt-sep' }),
+      mkBtn('⨯', 'removeFormat', 'Clear formatting', 'rb-fmt-clear')
+    );
+    document.body.append(bar);
+    document.addEventListener('focusin', (e) => {
+      const t = e.target;
+      if (t && t.matches && t.matches(RICH_SEL)) { activeRich = t; positionFmtBar(t); bar.classList.add('show'); }
+    });
+    document.addEventListener('focusout', () => {
+      setTimeout(() => {
+        const a = document.activeElement;
+        if (!a || !(a.matches && a.matches(RICH_SEL))) { bar.classList.remove('show'); activeRich = null; }
+      }, 150);
+    });
+    document.addEventListener('selectionchange', updateFmtState);
+    window.addEventListener('resize', () => { if (activeRich) positionFmtBar(activeRich); });
+    window.addEventListener('scroll', () => { if (activeRich) positionFmtBar(activeRich); }, true);
+  }
+  function applyFormat(cmd) {
+    try { document.execCommand('styleWithCSS', false, false); } catch (e) {}
+    document.execCommand(cmd, false, null);
+    updateFmtState();
+    if (activeRich) activeRich.focus(); // input event from execCommand persists the change
+  }
+  function positionFmtBar(el) {
+    const bar = document.getElementById('rb-fmt-bar');
+    if (!bar) return;
+    const r = el.getBoundingClientRect();
+    // hide if the field has scrolled out of view (avoids a detached toolbar)
+    if (r.bottom < 4 || r.top > window.innerHeight - 4) { bar.classList.remove('show'); return; }
+    const top = r.top - 40 < 8 ? r.bottom + 6 : r.top - 40; // flip below if no room above
+    bar.style.top = Math.max(8, top) + 'px';
+    bar.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 180)) + 'px';
+  }
+  function updateFmtState() {
+    const bar = document.getElementById('rb-fmt-bar');
+    if (!bar || !bar.classList.contains('show')) return;
+    const set = (sel, cmd) => { const b = bar.querySelector(sel); if (b) { let on = false; try { on = document.queryCommandState(cmd); } catch (e) {} b.classList.toggle('active', on); } };
+    set('.rb-fmt-bold', 'bold'); set('.rb-fmt-ital', 'italic'); set('.rb-fmt-und', 'underline');
   }
 
   function renderCommandBar() {
@@ -332,7 +419,7 @@
   function renderSummary() {
     return h('section', { class: 'rb-section' },
       sectionTitle('SUMMARY'),
-      editable(model.draft.summaryText || '', 'Optional tailored summary...', 'rb-summary', (v) => { model.draft.summaryText = v; scheduleSave(); })
+      editable(model.draft.summaryText || '', 'Optional tailored summary...', 'rb-summary', (v) => { model.draft.summaryText = v; scheduleSave(); }, true)
     );
   }
 
@@ -385,22 +472,36 @@
     return li;
   }
 
+  function dropIndex(ul, clientY) {
+    const wraps = Array.from(ul.querySelectorAll('.rb-bullet-wrap'));
+    for (let i = 0; i < wraps.length; i++) {
+      const r = wraps[i].getBoundingClientRect();
+      if (clientY < r.top + r.height / 2) return i;
+    }
+    return wraps.length;
+  }
+
   function attachBulletDrop(ul) {
-    ul.addEventListener('dragover', (e) => { if (drag && (drag.type === 'bullet' || drag.type === 'move')) e.preventDefault(); });
+    ul.addEventListener('dragover', (e) => {
+      if (drag && (drag.type === 'bullet' || drag.type === 'move')) { e.preventDefault(); ul.classList.add('rb-drop-active'); }
+    });
+    ul.addEventListener('dragleave', (e) => { if (!ul.contains(e.relatedTarget)) ul.classList.remove('rb-drop-active'); });
     ul.addEventListener('drop', (e) => {
       e.preventDefault();
+      ul.classList.remove('rb-drop-active');
       const item = findItem(ul.dataset.kind, ul.dataset.id);
       if (!item || !drag) return;
-      const idx = Math.max(0, Array.from(ul.querySelectorAll('.rb-bullet-wrap')).length);
+      item.bullets = item.bullets || [];
+      let idx = dropIndex(ul, e.clientY);
       if (drag.type === 'bullet') {
-        item.bullets = item.bullets || [];
         item.bullets.splice(idx, 0, { id: uid('rb'), sourceId: drag.sourceId, text: drag.text });
       } else if (drag.type === 'move') {
         const loc = findBullet(drag.id);
         if (loc) {
+          // adjust target index if moving down within the same list past the removed slot
+          if (loc.arr === item.bullets && loc.idx < idx) idx -= 1;
           const [moved] = loc.arr.splice(loc.idx, 1);
-          item.bullets = item.bullets || [];
-          item.bullets.push(moved);
+          item.bullets.splice(Math.max(0, idx), 0, moved);
         }
       }
       drag = null;
@@ -757,17 +858,40 @@
   }
 
   function exportWord() {
-    const html = '<!doctype html><html><head><meta charset="utf-8"><style>' + wordCSS() + '</style></head><body>' + $('#rb-paper').outerHTML + '</body></html>';
+    const clone = $('#rb-paper').cloneNode(true);
+    clone.style.zoom = '';
+    clone.querySelectorAll('.no-print, .rb-item-tools, .rb-grip, .rb-mini, .rb-kw-badge, .rb-role-drop, .rb-empty-note').forEach((n) => n.remove());
+    // Word ignores flexbox: convert the two-column rows to tables so the
+    // right-hand location/date column aligns properly.
+    clone.querySelectorAll('.rb-row').forEach((row) => {
+      const kids = Array.from(row.children);
+      if (kids.length < 2) return;
+      const bold = row.classList.contains('rb-bold') ? 'font-weight:bold;' : '';
+      const table = document.createElement('table');
+      table.setAttribute('style', 'width:100%;border-collapse:collapse;margin:0');
+      table.innerHTML = '<tr><td style="text-align:left;' + bold + '">' + kids[0].innerHTML +
+        '</td><td style="text-align:right;white-space:nowrap;' + bold + '">' + kids[kids.length - 1].innerHTML + '</td></tr>';
+      row.replaceWith(table);
+    });
+    const html = '<!doctype html><html><head><meta charset="utf-8"><style>' + wordCSS() + '</style></head><body>' + clone.outerHTML + '</body></html>';
     download(new Blob(['\ufeff', html], { type: 'application/msword' }), buildFilename('doc'));
   }
 
   function exportPDF() {
+    const paper = $('#rb-paper');
+    const savedZoom = paper ? paper.style.zoom : '';
+    if (paper) paper.style.zoom = ''; // print at true 8.5in, not the fit-to-screen zoom
     document.body.classList.add('rb-printing');
     const title = document.title;
     document.title = buildFilename('pdf').replace(/\.pdf$/, '');
     setTimeout(() => {
       window.print();
-      setTimeout(() => { document.body.classList.remove('rb-printing'); document.title = title; }, 500);
+      setTimeout(() => {
+        document.body.classList.remove('rb-printing');
+        document.title = title;
+        if (paper) paper.style.zoom = savedZoom;
+        fitPaper();
+      }, 500);
     }, 80);
   }
 
