@@ -11,6 +11,15 @@
 
   const DEFAULT_SUMMARY = 'M.S. Aerospace Engineering student (Space Systems) at the University of Michigan with hands-on experience across aerospace system design, integration, analysis, and test. Proven ability to translate requirements into verifiable architecture, execute multidisciplinary trade studies, and support environmental testing campaigns including vibration and thermal vacuum. Strong background in systems engineering, MBSE, structures, CFD, and test-to-analysis traceability through industry-sponsored research. INCOSE ASEP Certified. Seeking a full-time Aerospace or Systems Engineering role starting May 2026.';
 
+  const DEFAULT_PUBLICATIONS = [
+    'Sehgal, M., et al. (2026). "Numerical Study of Shock Train Effects on Mixed-Compression Air-Intake Performance." FLAME, Springer.',
+    'Trikha, S., Sehgal, M., et al. (2024). "Numerical Study of Shock-Wave/Boundary-Layer Interaction Control Using Variable Pressure and Inlet Size." FLAME, Springer.',
+    'Sehgal, M., et al. (2023). "Comparative Study of Natural Frequency of a C-141 Airfoil Wing and Cantilever Beam: Simulation and Experimental Investigation." Modern Research in Aerospace Engineering, Springer.',
+    'Sehgal, M. (2023). "Lagrangian Bases for Sustainable Satellite Operations, Refueling Hubs, and Multiplanetary Missions." AIAA Regional Student Conference, Paper 2023-77024.',
+    'Sehgal, M. (2019). "Wireless Sensor Network for Dynamic Discovery and Avoidance via Position Verification." Intl. Journal of Inventions in Electrical & Electronics Engineering, Vol. 5.',
+    'Sehgal, M. (2018). "RFID Adaptor for Detecting and Handling Data/Events in the Internet of Things." Intl. Journal of Innovations in Applied Sciences & Engineering, Vol. 4.'
+  ];
+
   const DEFAULT_PROFILE = {
     firstName: 'Madhav',
     lastName: 'Sehgal',
@@ -46,7 +55,8 @@
       { category: 'Programming & Data', items: ['Python (TensorFlow, PyTorch, NumPy, Pandas)', 'MATLAB', 'C/C++', 'FORTRAN', 'SQL', 'Flask', 'HTML/CSS/JS', 'Git'] },
       { category: 'Space Tools', items: ['STK', 'Thermal Desktop', 'ORDEM', 'MASTER'] },
       { category: 'Certifications', items: ['INCOSE Associate Systems Engineering Professional (ASEP), Feb 2026', 'ISRO Space Science & Technology Awareness Training (START), Jul 2023'] }
-    ]
+    ],
+    publications: DEFAULT_PUBLICATIONS.slice()
   };
 
   const DEFAULT_LIBRARY = {
@@ -169,9 +179,56 @@
           { id: 'b_wing_2', text: 'Performed modal analysis in ANSYS Workbench and tested a <b>1:61</b> scaled 3D-printed wing and beam to correlate simulated and measured response' },
           { id: 'b_wing_3', text: 'Assessed mode shapes and resonance risk to inform wing-stabilization concepts such as damping and structural reinforcement' }
         ]
+      },
+      {
+        id: 'p_launch', name: 'Three-Stage Launch Vehicle Design', org: 'University of Michigan',
+        subtitle: 'AEROSP 535 — Rocket Propulsion', dates: 'Aug 2024 – Dec 2024',
+        bullets: [
+          { id: 'b_lv_1', text: 'Designed a <b>74 m, 836,146 kg</b> three-stage launch vehicle to deliver <b>1,000 kg</b> to low lunar orbit through iterative mass optimization' },
+          { id: 'b_lv_2', text: 'Sized RP-1/LOX, CH4/LOX, and LH2/LOX stages to meet a total <b>ΔV of 17.6 km/s</b>, including combustion chambers, nozzles, and injectors' },
+          { id: 'b_lv_3', text: 'Validated stage design by computing propulsion flow properties in <b>NASA CEA</b> and performing hoop-stress sizing in Python and MATLAB' }
+        ]
       }
     ]
   };
+
+  // Focused starter résumés — pick one (chip or search) to load a draft curated
+  // for that track. Each references source roles/bullets from the library above.
+  const DEFAULT_PRESETS = [
+    { id: 'full', short: 'Everything', name: 'Everything (full library)', search: 'everything full all master complete', full: true, summary: DEFAULT_SUMMARY },
+    {
+      id: 'systems', short: 'Systems', name: 'Systems Engineering / MBSE',
+      search: 'systems engineering mbse sysml requirements verification v&v incose',
+      summary: 'Aerospace Systems Engineer (M.S., University of Michigan; INCOSE ASEP) focused on MBSE, requirements traceability, and V&V. Experience leading multidisciplinary teams through trade studies, FMEA, and verification planning and supporting flight-hardware qualification campaigns. Seeking a full-time Systems Engineering role starting May 2026.',
+      exp: [{ src: 'e_sprl' }, { src: 'e_cabs', bullets: ['b_cabs_1', 'b_cabs_3'] }],
+      proj: [{ src: 'p_lps' }, { src: 'p_iced' }, { src: 'p_cubesat' }],
+      skills: ['Systems Engineering', 'Test & Qualification', 'Space Tools', 'Programming & Data', 'CAD & Design', 'Certifications']
+    },
+    {
+      id: 'structures', short: 'Structures', name: 'Structures / Structural Analysis',
+      search: 'structures structural fea modal vibration mechanical stress',
+      summary: 'Aerospace Structural Engineer (M.S., University of Michigan) with hands-on FEA, modal, and vibration analysis across launch-vehicle, satellite, and aircraft structures in ANSYS, ABAQUS, and SOLIDWORKS, plus thermal-vacuum and vibration qualification testing. Seeking a full-time Structural / Mechanical Engineering role starting May 2026.',
+      exp: [{ src: 'e_asl' }, { src: 'e_cabs', bullets: ['b_cabs_3', 'b_cabs_2', 'b_cabs_1'] }, { src: 'e_sprl', bullets: ['b_sprl_4', 'b_sprl_2'] }],
+      proj: [{ src: 'p_panel' }, { src: 'p_wing' }, { src: 'p_iced', bullets: ['b_iced_3', 'b_iced_1'] }],
+      skills: ['Structural Analysis', 'Test & Qualification', 'CAD & Design', 'CFD & Aerodynamics', 'Programming & Data', 'Certifications']
+    },
+    {
+      id: 'cfd', short: 'CFD', name: 'CFD & Aerodynamics',
+      search: 'cfd aerodynamics aero fluid dynamics propulsion supersonic',
+      summary: 'Aerospace CFD & Aerodynamics Engineer (M.S., University of Michigan) experienced in 3D RANS/LES, SST k-ω turbulence modeling, SBLI flow control, and supersonic inlet design in ANSYS Fluent and OpenFOAM, validated against wind-tunnel experiments and analytical theory. Seeking a full-time Aerodynamics / CFD role starting May 2026.',
+      exp: [{ src: 'e_gdi' }, { src: 'e_aero' }, { src: 'e_cabs', bullets: ['b_cabs_1', 'b_cabs_2'] }],
+      proj: [{ src: 'p_launch' }, { src: 'p_wing' }],
+      skills: ['CFD & Aerodynamics', 'Structural Analysis', 'Programming & Data', 'CAD & Design', 'Test & Qualification']
+    },
+    {
+      id: 'ml', short: 'ML / Software', name: 'ML, Data & Software',
+      search: 'ml machine learning data software python full-stack flask developer',
+      summary: 'Aerospace engineer (M.S., University of Michigan) building production ML and full-stack software for aerospace data — Bayesian neural networks with uncertainty quantification, satellite remote-sensing pipelines, and a deployed Flask/Python test-management platform. Seeking a role at the intersection of aerospace, data, and software starting May 2026.',
+      exp: [{ src: 'e_sprl', bullets: ['b_sprl_1', 'b_sprl_3', 'b_sprl_2'] }, { src: 'e_gdi' }],
+      proj: [{ src: 'p_satagri' }, { src: 'p_lps', bullets: ['b_lps_1', 'b_lps_2'] }],
+      skills: ['Programming & Data', 'Systems Engineering', 'CFD & Aerodynamics', 'Space Tools', 'Certifications']
+    }
+  ];
 
   let model = null;
   let drag = null;
@@ -249,9 +306,44 @@
     const draft = s.resume_draft || local.draft || defaultDraft(library, profile);
     const cloudVersions = Array.isArray(s.resume_versions) && s.resume_versions.length ? s.resume_versions : null;
     const versions = cloudVersions || (Array.isArray(local.versions) ? local.versions : []);
+    if (profile.publications == null) profile.publications = clone(DEFAULT_PUBLICATIONS);
     model = { profile, library, draft, versions };
     ensureDraftShape(model.draft);
     return model;
+  }
+
+  function buildDraftFromPreset(preset) {
+    if (preset.full) { const d = defaultDraft(model.library, model.profile); d.summaryText = preset.summary || DEFAULT_SUMMARY; return d; }
+    const exp = model.library.experiences || [], proj = model.library.projects || [], prof = model.profile;
+    const pick = (srcBullets, ids) => (ids && ids.length ? ids.map((bid) => (srcBullets || []).find((b) => b.id === bid)).filter(Boolean) : (srcBullets || []));
+    const mapExp = (spec) => { const e = exp.find((x) => x.id === spec.src); if (!e) return null; return { id: uid('re'), company: e.company, location: e.location, title: e.title, dates: e.dates, bullets: pick(e.bullets, spec.bullets).map((b) => ({ id: uid('rb'), sourceId: b.id, text: b.text })) }; };
+    const mapProj = (spec) => { const p = proj.find((x) => x.id === spec.src); if (!p) return null; return { id: uid('rp'), name: p.name, org: p.org, subtitle: p.subtitle, dates: p.dates, bullets: pick(p.bullets, spec.bullets).map((b) => ({ id: uid('rb'), sourceId: b.id, text: b.text })) }; };
+    const skills = (preset.skills && preset.skills.length ? preset.skills.map((c) => (prof.skills || []).find((g) => g.category === c)).filter(Boolean) : (prof.skills || [])).map((g) => clone(g));
+    return {
+      id: null, targetCompany: '', targetRole: '', jobDescription: '',
+      includeSummary: true, summaryText: preset.summary || DEFAULT_SUMMARY,
+      includePublications: true, fontPt: 10.5,
+      experience: (preset.exp || []).map(mapExp).filter(Boolean),
+      projects: (preset.proj || []).map(mapProj).filter(Boolean),
+      skills: skills
+    };
+  }
+  function confirmAndLoadPreset(preset) {
+    if (!window.confirm('Load the "' + preset.name + '" template? This replaces the resume in the center. Saved versions and your library are not affected.')) return;
+    model.draft = buildDraftFromPreset(preset);
+    analysis = null;
+    saveNow();
+    render();
+    toast('Loaded the "' + preset.name + '" template.', 'success');
+  }
+  function tryLoadPreset(value) {
+    const v = (value || '').toLowerCase().trim();
+    if (!v) return;
+    let preset = DEFAULT_PRESETS.find((p) => p.name.toLowerCase() === v || (p.short || '').toLowerCase() === v);
+    if (!preset) preset = DEFAULT_PRESETS.find((p) => p.name.toLowerCase().includes(v) || (p.short || '').toLowerCase().includes(v) || (p.search || '').includes(v));
+    if (!preset) preset = DEFAULT_PRESETS.find((p) => v.split(/\s+/).some((w) => w.length > 1 && (p.search || '').includes(w)));
+    if (!preset) { toast('No template matches "' + value + '". Try: structures, systems, CFD, ML, everything.', 'error'); return; }
+    confirmAndLoadPreset(preset);
   }
 
   function defaultDraft(library, profile) {
@@ -262,6 +354,7 @@
       jobDescription: '',
       includeSummary: true,
       summaryText: DEFAULT_SUMMARY,
+      includePublications: true,
       experience: (library.experiences || []).map((e) => ({
         id: uid('re'),
         company: e.company,
@@ -288,6 +381,7 @@
     d.skills = d.skills || [];
     d.jobDescription = d.jobDescription || '';
     if (typeof d.fontPt !== 'number') d.fontPt = 10.5;
+    if (typeof d.includePublications !== 'boolean') d.includePublications = true;
   }
 
   const MIGRATION_SQL = [
@@ -468,6 +562,14 @@
         h('div', {}, h('strong', {}, 'Saved on this device. '), 'To sync resumes across all devices, run this once in Supabase → SQL Editor:'),
         h('button', { class: 'rb-mini', onclick: () => { copyText(MIGRATION_SQL); toast('Migration SQL copied — paste it into the Supabase SQL editor and Run.', 'success'); } }, 'Copy SQL')
       ),
+      h('div', { class: 'rb-preset-bar' },
+        h('span', { class: 'rb-preset-label' }, 'Template:'),
+        ...DEFAULT_PRESETS.map((p) => h('button', { class: 'rb-preset-chip', title: p.name, onclick: () => confirmAndLoadPreset(p) }, p.short)),
+        h('input', { id: 'rb-preset-search', class: 'rb-preset-search', list: 'rb-preset-list', placeholder: 'search: structures, systems, CFD, ML…',
+          onkeydown: (e) => { if (e.key === 'Enter') { tryLoadPreset(e.target.value); e.target.value = ''; } },
+          onchange: (e) => { tryLoadPreset(e.target.value); e.target.value = ''; } }),
+        h('datalist', { id: 'rb-preset-list' }, ...DEFAULT_PRESETS.map((p) => h('option', { value: p.name })))
+      ),
       h('div', { class: 'rb-target-grid' },
         h('label', {}, 'Company', h('input', { id: 'rb-company', value: d.targetCompany || '', oninput: (e) => { d.targetCompany = e.target.value; scheduleSave(); renderVersionLabel(); } })),
         h('label', {}, 'Role', h('input', { id: 'rb-role', value: d.targetRole || '', oninput: (e) => { d.targetRole = e.target.value; scheduleSave(); renderVersionLabel(); } })),
@@ -483,6 +585,7 @@
           h('button', { onclick: () => setFontPt(0.5) }, 'A+')
         ),
         h('button', { class: d.includeSummary ? 'primary' : '', title: 'Show/hide the summary section', onclick: () => { d.includeSummary = !d.includeSummary; scheduleSave(); render(); } }, 'Summary'),
+        h('button', { class: d.includePublications ? 'primary' : '', title: 'Show/hide the publications section', onclick: () => { d.includePublications = !d.includePublications; scheduleSave(); render(); } }, 'Pubs'),
         h('button', { onclick: exportWord }, 'Word'),
         h('button', { onclick: exportPDF }, 'PDF')
       ),
@@ -529,8 +632,20 @@
         renderEducation(),
         renderItems('EXPERIENCE', d.experience, 'experience'),
         renderItems('PROJECT', d.projects, 'projects'),
-        renderSkills()
+        renderSkills(),
+        (d.includePublications && (p.publications || []).length) ? renderPublications() : null
       )
+    );
+  }
+
+  function renderPublications() {
+    const pubs = model.profile.publications || [];
+    return h('section', { class: 'rb-section' },
+      sectionTitle('PUBLICATIONS', h('button', { class: 'rb-mini no-print', onclick: () => { model.profile.publications = model.profile.publications || []; model.profile.publications.push(''); scheduleSave(); render(); } }, '+ add')),
+      h('ol', { class: 'rb-pubs' }, ...pubs.map((t, i) => h('li', { class: 'rb-pub' },
+        editable(t, 'Publication citation', 'rb-pub-text', (v) => { model.profile.publications[i] = v; scheduleSave(); }),
+        h('button', { class: 'rb-mini no-print rb-pub-x', title: 'Remove', onclick: () => { model.profile.publications.splice(i, 1); scheduleSave(); render(); } }, 'x')
+      )))
     );
   }
 
@@ -1236,6 +1351,11 @@
     if ((d.skills || []).length) {
       body += heading('Skills');
       d.skills.forEach((g) => { body += '<p style="margin:0 0 1pt 0;font-size:' + fpt + 'pt"><b>' + esc(g.category) + ':</b> ' + esc((g.items || []).join(', ')) + '</p>'; });
+    }
+    const pubs = (d.includePublications !== false ? (p.publications || []) : []).filter((x) => x && x.trim());
+    if (pubs.length) {
+      body += heading('Publications');
+      body += '<ol style="margin:2pt 0 0 0.22in;padding:0">' + pubs.map((t) => '<li style="margin:0 0 1pt 0;font-size:' + fpt + 'pt">' + esc(t) + '</li>').join('') + '</ol>';
     }
 
     if (forWord) {

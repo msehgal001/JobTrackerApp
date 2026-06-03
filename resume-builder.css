@@ -32,6 +32,46 @@
   gap: 12px;
 }
 
+/* focused-template (preset) picker + search */
+.rb-preset-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.rb-preset-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+}
+.rb-preset-chip {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.rb-preset-chip:hover { border-color: var(--accent, #ff6b35); color: var(--accent, #ff6b35); }
+.rb-preset-search {
+  flex: 1;
+  min-width: 160px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 12.5px;
+}
+
+/* publications (compact, numbered) */
+.rb-pubs { list-style: decimal; margin: 2pt 0 0 15pt; padding: 0; }
+.rb-pub { margin-bottom: 1.5pt; line-height: 1.25; }
+.rb-pub-text { outline: none; }
+.rb-pub-x { margin-left: 4px; vertical-align: middle; }
+
 .rb-actions,
 .rb-side-actions {
   display: flex;
