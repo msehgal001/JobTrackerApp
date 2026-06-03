@@ -9,6 +9,8 @@
 
   const STOP = new Set('a an and are as at be by can for from has have in into is it its of on or our per that the their this to with we will you your role team teams using use used work working experience experienced strong preferred seek involves ability responsibilities qualifications basic minimum plus across within through under over'.split(' '));
 
+  const DEFAULT_SUMMARY = 'M.S. Aerospace Engineering student (Space Systems) at the University of Michigan with hands-on experience across aerospace system design, integration, analysis, and test. Proven ability to translate requirements into verifiable architecture, execute multidisciplinary trade studies, and support environmental testing campaigns including vibration and thermal vacuum. Strong background in systems engineering, MBSE, structures, CFD, and test-to-analysis traceability through industry-sponsored research. INCOSE ASEP Certified. Seeking a full-time Aerospace or Systems Engineering role starting May 2026.';
+
   const DEFAULT_PROFILE = {
     firstName: 'Madhav',
     lastName: 'Sehgal',
@@ -21,75 +23,151 @@
         school: 'University of Michigan',
         location: 'Ann Arbor, MI',
         degree: 'Master of Science in Aerospace Engineering (Concentration: Space Systems)',
-        dates: 'May 2026',
-        details: ['Coursework: Rocket Propulsion, Finite Element Method, CFD.']
+        dates: 'May 2026 (Expected)',
+        details: [
+          'Coursework: Rocket Propulsion, Structural Dynamics, Finite Element Method, Spacecraft Systems Engineering, MBSE',
+          'Graduate Student Instructor: AERO/SPACE 582 (Spacecraft Systems Engineering)'
+        ]
       },
       {
         school: 'Amity University',
         location: 'Uttar Pradesh, India',
-        degree: 'Bachelor of Technology in Aerospace Engineering (Hons. In Spacecraft Engineering)',
+        degree: 'Bachelor of Technology in Aerospace Engineering (Hons. in Spacecraft Engineering)',
         dates: 'May 2024',
-        details: []
+        details: ['Relevant Coursework: Aircraft Structures, Composite Structures, Strength of Materials, Finite Element Analysis']
       }
     ],
     skills: [
-      { category: 'CFD and Aerodynamics', items: ['ANSYS Fluent', 'OpenFOAM', 'STAR-CCM+', 'RANS', 'LES', 'SST k-omega', 'shock-wave boundary-layer interaction', 'supersonic inlet flows', 'mesh refinement', 'convergence studies'] },
-      { category: 'Propulsion and Analysis', items: ['Rocket propulsion', 'nozzle and injector sizing', 'NASA CEA', 'compressible flow', 'aerodynamic validation', 'uncertainty quantification'] },
-      { category: 'Programming and Data', items: ['Python', 'TensorFlow', 'MATLAB', 'NumPy', 'Pandas', 'SQL', 'Git', 'C/C++'] },
-      { category: 'Testing and Design', items: ['Wind tunnel operations', 'pressure measurement integration', 'Pitot-static calibration', 'smoke visualization', 'LabVIEW', 'Arduino', 'CATIA V5', 'SOLIDWORKS', 'HyperMesh'] }
+      { category: 'Systems Engineering', items: ['MBSE (SysML, MagicDraw)', 'requirements traceability', 'V&V', 'trade studies', 'CONOPS', 'WBS', 'FMEA/PFMEA/PFA', 'ICD', 'INCOSE ASEP'] },
+      { category: 'Structural Analysis', items: ['FEA', 'modal analysis', 'vibration analysis', 'stress & deformation analysis', 'mesh convergence', 'composite structures', 'ANSYS Workbench/APDL', 'ABAQUS', 'NASTRAN'] },
+      { category: 'CFD & Aerodynamics', items: ['ANSYS Fluent', 'OpenFOAM', 'STAR-CCM+', 'RANS/LES', 'SST k-ω turbulence modeling', 'SBLI', 'HyperMesh'] },
+      { category: 'Test & Qualification', items: ['thermal-vacuum (TVAC)', 'vibration testing', 'NDT', 'GEVS', 'MIL-STD compliance', 'configuration control', 'LabVIEW', 'Arduino', 'wind tunnel operations'] },
+      { category: 'CAD & Design', items: ['SOLIDWORKS', 'CATIA V5', 'Creo', 'Fusion 360', 'AutoCAD'] },
+      { category: 'Programming & Data', items: ['Python (TensorFlow, PyTorch, NumPy, Pandas)', 'MATLAB', 'C/C++', 'FORTRAN', 'SQL', 'Flask', 'HTML/CSS/JS', 'Git'] },
+      { category: 'Space Tools', items: ['STK', 'Thermal Desktop', 'ORDEM', 'MASTER'] },
+      { category: 'Certifications', items: ['INCOSE Associate Systems Engineering Professional (ASEP), Feb 2026', 'ISRO Space Science & Technology Awareness Training (START), Jul 2023'] }
     ]
   };
 
   const DEFAULT_LIBRARY = {
     experiences: [
       {
-        id: 'e_gdi',
-        company: 'Gas Dynamics Imaging Laboratory, University of Michigan',
-        location: 'Ann Arbor, MI',
-        title: 'Graduate Student Researcher',
-        dates: 'May 2025 - Aug 2025',
+        id: 'e_sprl', company: 'Space Physics Research Lab (SPRL), University of Michigan', location: 'Ann Arbor, MI',
+        title: 'Systems Engineering Intern', dates: 'May 2025 – Aug 2025',
         bullets: [
-          { id: 'b_gdi_1', text: 'Reduced wind tunnel pre-screening by developing a <b>Bayesian Neural Network in Python and TensorFlow</b> that predicted shock-train position in supersonic isolators with <b>99.6%</b> accuracy' },
-          { id: 'b_gdi_2', text: 'Enabled direct CFD-to-experiment validation by <b>developing a Python pipeline to align 500+ pressure taps with CFD mesh nodes</b>, eliminating a spatial mismatch between test and simulation data' },
-          { id: 'b_gdi_3', text: 'Expanded a limited training dataset by generating <b>physics-constrained synthetic flowfields</b> with conserved flow behavior, improving model training under sparse-data conditions' }
+          { id: 'b_sprl_1', text: 'Developed <b>TestBedz</b>, a full-stack Flask/Python platform to manage TVAC, vibration, and NDT test workflows with structured GEVS/MIL-STD compliance checks, reducing test-request errors by <b>40%</b> and now used in active flight-hardware campaigns' },
+          { id: 'b_sprl_2', text: 'Created WBS, PFMEA, and PFA templates and automated test-procedure generation, cutting documentation time from <b>4 hours to 90 minutes</b> per campaign while establishing QC frameworks adopted as lab standards' },
+          { id: 'b_sprl_3', text: 'Developed system-level CONOPS and a web dashboard with database backend for trade studies, V&V planning, test tracking, and resource allocation, giving real-time visibility across multi-program test schedules' },
+          { id: 'b_sprl_4', text: 'Coordinated environmental test campaigns (thermal-vacuum and vibration qualification) including setup, configuration control, and documentation across flight-hardware programs' }
         ]
       },
       {
-        id: 'e_amity',
-        company: 'Aerodynamics & Wind Tunnel Laboratory, Amity University',
-        location: 'Noida, India',
-        title: 'Undergraduate Student Researcher',
-        dates: 'May 2025 - Aug 2025',
+        id: 'e_gdi', company: 'Gas Dynamics Imaging Laboratory, University of Michigan', location: 'Ann Arbor, MI',
+        title: 'Graduate Student Researcher', dates: 'May 2025 – Aug 2025',
         bullets: [
-          { id: 'b_amity_1', text: 'Validated published <b>Mach 3 inlet benchmarks within 2%</b> by performing 3D RANS simulations in ANSYS Fluent with 2M-8M cell mesh-independence studies and SST k-omega turbulence modeling' },
-          { id: 'b_amity_2', text: 'Doubled pressure recovery by designing passive and active micro-vortex generators across <b>12 supersonic inlet configurations</b> and evaluating their performance through CFD-driven iteration' },
-          { id: 'b_amity_3', text: 'Improved wind tunnel flow diagnostics by integrating <b>Pitot-static calibration, smoke visualization, and LabVIEW-Arduino data acquisition</b> for pressure measurement and separation mapping' }
+          { id: 'b_gdi_1', text: 'Developed a <b>Bayesian Neural Network</b> in Python/TensorFlow to predict shock-train position in supersonic isolators, achieving <b>99.6%</b> predictive accuracy with quantified uncertainty bounds for pre-test computational screening' },
+          { id: 'b_gdi_2', text: 'Created a physics-constrained synthetic data-generation tool so generated supersonic flow fields satisfy conservation equations and match experimental statistics, addressing sparse training data' },
+          { id: 'b_gdi_3', text: 'Built a Python synchronization pipeline mapping <b>500+</b> experimental pressure-tap measurements to CFD mesh nodes, resolving spatial discrepancies that previously blocked experimental-numerical comparison' }
         ]
       },
       {
-        id: 'e_drdo',
-        company: 'Centre for Airborne Systems, Defence Research & Development Organisation (DRDO)',
-        location: 'Bangalore, India',
-        title: 'Engineering Research Intern',
-        dates: 'May 2023 - June 2023',
+        id: 'e_aero', company: 'Aerodynamics Laboratory, Amity University', location: 'Noida, India',
+        title: 'Undergraduate Researcher (CFD & Wind Tunnel)', dates: 'Aug 2023 – May 2024',
         bullets: [
-          { id: 'b_drdo_1', text: 'Improved modeled fuel-transfer efficiency by <b>15%</b> by optimizing the geometry of an air-to-air refueling pod for the IL-78MKI tanker aircraft under Mach 0.7 cruise conditions' },
-          { id: 'b_drdo_2', text: 'Reduced design risk by evaluating aerodynamic loads and structural response through <b>coupled CFD-structural analysis</b>, confirming the refueling pod could withstand operational vibration loads without resonance risk' },
-          { id: 'b_drdo_3', text: 'Achieved <b>97% agreement with analytical predictions</b> by validating CFD results in MATLAB and hand calculations, identifying and correcting a mesh-resolution issue before final release' }
+          { id: 'b_aero_1', text: 'Ran 3D RANS simulations in ANSYS Fluent for a <b>Mach 3</b> supersonic inlet with mesh-independence studies from <b>2M–8M cells</b> and SST k-ω modeling, converging within <b>2%</b> of published benchmarks' },
+          { id: 'b_aero_2', text: 'Designed passive and active micro-vortex generators that <b>doubled pressure recovery</b> across supersonic inlet configurations through CFD-driven iteration' },
+          { id: 'b_aero_3', text: 'Operated low-speed wind tunnels — Pitot-static calibration, smoke flow visualization, and LabVIEW/Arduino data acquisition — combining experimental and computational results into multiple publications' }
+        ]
+      },
+      {
+        id: 'e_cabs', company: 'Centre for Airborne Systems, Defence Research & Development Organisation (DRDO)', location: 'Bangalore, India',
+        title: 'Engineering Research Intern', dates: 'May 2023 – June 2023',
+        bullets: [
+          { id: 'b_cabs_1', text: 'Developed a CATIA parametric model of a drogue-and-probe aerial refueling system for the IL-78MKI tanker and ran coupled CFD-structural analysis in ANSYS at <b>Mach 0.7</b> cruise, improving modeled fuel-transfer efficiency <b>15%</b> through geometry optimization' },
+          { id: 'b_cabs_2', text: 'Validated CFD predictions with potential-flow theory and empirical drag correlations in MATLAB, achieving <b>97%</b> correlation and catching a mesh-resolution error that would have compromised accuracy' },
+          { id: 'b_cabs_3', text: 'Conducted modal and vibration analysis of the refueling-pod structure under aerodynamic forcing, evaluating natural frequencies and mode shapes for resonance avoidance and validating against MIL-STD-810' }
+        ]
+      },
+      {
+        id: 'e_asl', company: 'Advanced Systems Laboratory, Defence Research & Development Organisation (DRDO)', location: 'Hyderabad, India',
+        title: 'Structural Engineering Intern', dates: 'May 2022 – June 2022',
+        bullets: [
+          { id: 'b_asl_1', text: 'Built a detailed 3D structural model of a space launch vehicle in SOLIDWORKS as a baseline for static, dynamic, and modal load evaluation under launch conditions' },
+          { id: 'b_asl_2', text: 'Performed finite-element structural and modal analyses in ANSYS Workbench and APDL, identifying critical vibration modes and verifying vehicle survivability under launch forces, with a report of design-optimization recommendations' },
+          { id: 'b_asl_3', text: 'Validated natural-frequency results with MATLAB analytical models, achieving <b>98%</b> agreement between analytical and numerical methods and improving simulation fidelity <b>15%</b>' }
+        ]
+      },
+      {
+        id: 'e_jarwiz', company: 'JarWiz', location: 'New Delhi, India',
+        title: 'Founder & CEO', dates: 'Aug 2020 – May 2024',
+        bullets: [
+          { id: 'b_jw_1', text: 'Founded JarWiz, a Microsoft-partnered pre-seed initiative connecting underprivileged students in India with STEM mentorship, career guidance, and experiential learning to reduce opportunity inequality' },
+          { id: 'b_jw_2', text: 'Designed and led structured learning and outreach programs by translating industry skill gaps into practical development opportunities for resource-constrained learners' },
+          { id: 'b_jw_3', text: 'Built networks with student organizations and professionals to expand access to workshops, internships, and experiential learning opportunities' }
         ]
       }
     ],
     projects: [
       {
-        id: 'p_launch',
-        name: 'Three-Stage Launch Vehicle Design',
-        org: 'University of Michigan',
-        subtitle: 'Graduate Level Rocket Propulsion Class Project',
-        dates: 'Aug 2024 - Dec 2024',
+        id: 'p_lps', name: 'Lunar Position System using MBSE (Northrop Grumman)', org: 'University of Michigan',
+        subtitle: 'Systems Engineer', dates: 'Aug 2025 – Dec 2025',
         bullets: [
-          { id: 'b_launch_1', text: 'Designed a <b>74 m, 836,146 kg three-stage launch vehicle</b> to deliver 1,000 kg to low lunar orbit through iterative mass optimization' },
-          { id: 'b_launch_2', text: 'Sized RP-1/LOX, CH4/LOX, and LH2/LOX stages to meet the total mission delta V of <b>17.6 km/s</b>, including combustion chambers, nozzles, and injectors to fulfil the critical requirements as per the problem statement' },
-          { id: 'b_launch_3', text: 'Validated stage-level design parameters by computing propulsion flow properties in <b>NASA CEA</b> and performing hoop-stress sizing in Python and MATLAB' }
+          { id: 'b_lps_1', text: 'Developed a SysML architecture in MagicDraw for a lunar navigation constellation, tracing stakeholder needs through functional allocation to subsystem and hardware definitions with block and internal block diagrams' },
+          { id: 'b_lps_2', text: 'Established a requirements verification matrix linking <b>47</b> system requirements to test, analysis, inspection, or demonstration methods' },
+          { id: 'b_lps_3', text: 'Conducted trade studies on constellation geometry, inter-satellite ranging, and atomic-clock synchronization, defending feasibility at milestone reviews with faculty and Northrop Grumman sponsors' }
+        ]
+      },
+      {
+        id: 'p_iced', name: 'Identification & Characterization Expedition for Debris Tracking (ICED)', org: 'University of Michigan',
+        subtitle: 'Systems Engineer (Thermal & Structures Lead)', dates: 'Aug 2024 – Apr 2025',
+        bullets: [
+          { id: 'b_iced_1', text: 'Led a <b>14-person</b> team developing a constellation architecture for <b>1 mm</b> orbital-debris detection, linking mission requirements to satellite count, altitude, and sensor FOV via STK trade studies, FMEA, and WBS' },
+          { id: 'b_iced_2', text: 'Defined the mission debris environment with MASTER and ORDEM to constrain detection requirements and design assumptions' },
+          { id: 'b_iced_3', text: 'Ran thermal and structural FEA verifying satellite-bus survivability under launch vibration and on-orbit thermal cycling (Thermal Desktop), integrating results into mass and power budgets for PDR' }
+        ]
+      },
+      {
+        id: 'p_cubesat', name: 'Miniature Amity Satellite System (3U CubeSat)', org: 'Amity University',
+        subtitle: 'Chief Systems Engineer / Team Lead', dates: 'Dec 2022 – May 2024',
+        bullets: [
+          { id: 'b_cs_1', text: 'Established a university CubeSat program coordinating <b>18</b> members across structures, payload, communications, and ground systems, with interface-control documentation to prevent design drift' },
+          { id: 'b_cs_2', text: 'Designed a cross-Yagi UHF telemetry antenna and ran link-budget analysis showing a <b>3 W</b> transmitter could close a <b>450 km</b> link with the ground station' },
+          { id: 'b_cs_3', text: 'Secured facilities, equipment, and funding through technical presentations to university leadership, building lasting CubeSat capability for later cohorts' }
+        ]
+      },
+      {
+        id: 'p_satagri', name: 'Satellite Geospatial Intelligence for Agriculture', org: 'University of Michigan',
+        subtitle: 'Independent Research (Prof. Steve Battel)', dates: 'Jan 2026 – Present',
+        bullets: [
+          { id: 'b_sa_1', text: 'Building automated ML pipelines that turn <b>13-band</b> multispectral satellite imagery into crop-health maps and actionable irrigation and fertilizer recommendations for precision agriculture' },
+          { id: 'b_sa_2', text: 'Processing satellite telemetry to flag crop-stress indicators before visible symptoms, applying aerospace remote-sensing methods to food-security challenges' }
+        ]
+      },
+      {
+        id: 'p_panel', name: 'Composite and Isotropic Panel Stress Analysis', org: 'University of Michigan',
+        subtitle: 'Graduate Project', dates: 'Jan 2025 – Apr 2025',
+        bullets: [
+          { id: 'b_pan_1', text: 'Developed MATLAB FEM solvers for displacement, strain, and stress prediction across isotropic and composite structural panels' },
+          { id: 'b_pan_2', text: 'Validated FEA accuracy with mesh-refinement and convergence studies under mechanical and thermal loading' },
+          { id: 'b_pan_3', text: 'Studied fiber-orientation effects on stiffness, stress distribution, and deformation in composite structures' }
+        ]
+      },
+      {
+        id: 'p_herc', name: 'NASA Human Exploration Rover Challenge (HERC)', org: 'Amity University',
+        subtitle: 'Team Lead', dates: 'Sep 2020 – May 2023',
+        bullets: [
+          { id: 'b_herc_1', text: 'Led a <b>12-person</b> multidisciplinary team across three NASA HERC cycles, coordinating design, fabrication, testing, and post-test failure reviews for a human-powered lunar rover' },
+          { id: 'b_herc_2', text: 'Developed FMEA for steering, suspension, and drivetrain, validating designs at <b>2×</b> expected operational loads to prevent repeat failures' },
+          { id: 'b_herc_3', text: 'Earned the <b>NASA Safety Award (2021)</b>, a first in the nation, through a test-based hazard-mitigation process' }
+        ]
+      },
+      {
+        id: 'p_wing', name: 'Aircraft Wing Modal Analysis & Experimental Validation', org: 'Amity University',
+        subtitle: 'Student Researcher (Springer 2023)', dates: 'Jan 2022 – May 2022',
+        bullets: [
+          { id: 'b_wing_1', text: 'Compared natural frequencies of a C-141-based aircraft wing and a cantilever beam through simulation and experimental modal analysis' },
+          { id: 'b_wing_2', text: 'Performed modal analysis in ANSYS Workbench and tested a <b>1:61</b> scaled 3D-printed wing and beam to correlate simulated and measured response' },
+          { id: 'b_wing_3', text: 'Assessed mode shapes and resonance risk to inform wing-stabilization concepts such as damping and structural reinforcement' }
         ]
       }
     ]
@@ -182,8 +260,8 @@
       targetCompany: '',
       targetRole: '',
       jobDescription: '',
-      includeSummary: false,
-      summaryText: '',
+      includeSummary: true,
+      summaryText: DEFAULT_SUMMARY,
       experience: (library.experiences || []).map((e) => ({
         id: uid('re'),
         company: e.company,
@@ -404,6 +482,7 @@
           h('span', { id: 'rb-font-label' }, (d.fontPt || 10.5) + 'pt'),
           h('button', { onclick: () => setFontPt(0.5) }, 'A+')
         ),
+        h('button', { class: d.includeSummary ? 'primary' : '', title: 'Show/hide the summary section', onclick: () => { d.includeSummary = !d.includeSummary; scheduleSave(); render(); } }, 'Summary'),
         h('button', { onclick: exportWord }, 'Word'),
         h('button', { onclick: exportPDF }, 'PDF')
       ),
@@ -446,8 +525,8 @@
           h('div', { class: 'rb-name' }, `${p.firstName || ''} ${p.lastName || ''}`.trim().toUpperCase() || 'YOUR NAME'),
           h('div', { class: 'rb-contact' }, contactParts(p).map((c, i) => h('span', { class: c.link ? 'rb-linkish' : '' }, (i ? ' • ' : '') + c.text)))
         ),
-        renderEducation(),
         d.includeSummary ? renderSummary() : null,
+        renderEducation(),
         renderItems('EXPERIENCE', d.experience, 'experience'),
         renderItems('PROJECT', d.projects, 'projects'),
         renderSkills()
