@@ -88,6 +88,80 @@
 }
 .rb-sync-notice.hidden { display: none; }
 
+/* ===== paste & import modal ===== */
+.rb-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 16px;
+  overflow: auto;
+}
+.rb-modal {
+  width: min(680px, 100%);
+  background: var(--bg-elev, #16161c);
+  border: 1px solid var(--border, #333);
+  border-radius: 12px;
+  padding: 18px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+}
+.rb-modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.rb-modal-head strong { font-size: 16px; }
+.rb-import-ta {
+  width: 100%;
+  min-height: 220px;
+  resize: vertical;
+  padding: 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  font-family: 'JetBrains Mono', monospace;
+}
+.rb-modal-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.rb-import-summary { margin-top: 14px; }
+.rb-import-counts {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--accent-2, #7dd3fc);
+  margin-bottom: 10px;
+}
+.rb-import-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 320px;
+  overflow: auto;
+}
+.rb-import-item {
+  border: 1px solid var(--border, #333);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+.rb-import-meta {
+  font-size: 11px;
+  color: var(--text-faint, #888);
+  margin: 2px 0;
+}
+.rb-import-bul {
+  font-size: 12px;
+  color: var(--text-dim, #aaa);
+  line-height: 1.4;
+  margin-top: 2px;
+}
+
 .rb-version-bar {
   margin-top: 14px;
   padding-top: 12px;

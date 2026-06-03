@@ -597,6 +597,7 @@
         h('input', { id: 'rb-search', placeholder: 'Search bullets...', oninput: render })
       ),
       h('div', { class: 'rb-side-actions' },
+        h('button', { class: 'primary', onclick: openImportModal }, '⎘ Paste / Import'),
         h('button', { onclick: addSourceExperience }, '+ Role'),
         h('button', { onclick: addSourceProject }, '+ Project'),
         h('button', { onclick: resetToDefaultResume }, 'Reset default')
@@ -924,6 +925,191 @@
     const co = (model.draft.targetCompany || 'Company').replace(/[^a-z0-9]+/gi, '');
     const role = (model.draft.targetRole || 'Role').replace(/[^a-z0-9]+/gi, '');
     return `${first}${last}_${co}_${role}_${today()}.${ext}`;
+  }
+
+  // ============================================================
+  // Paste & import: parse pasted resume text into the library/profile
+  // ============================================================
+  function parseResumeText(raw) {
+    const result = { experiences: [], projects: [], education: [], skills: [] };
+    if (!raw || !raw.trim()) return result;
+
+    const MONTHS = '(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\\.?';
+    const YEAR = '(?:19|20)\\d{2}';
+    const dateToken = '(?:' + MONTHS + '\\s*,?\\s*)?(?:' + YEAR + ')';
+    const rangeRe = new RegExp('(' + dateToken + '|present|current)\\s*(?:[\\-\\u2013\\u2014]|to|until)\\s*(' + dateToken + '|present|current|now)', 'i');
+    const singleRe = new RegExp('(?:' + dateToken + '|present|current)', 'i');
+    const bulletRe = /^\s*(?:[•▪◦‣·●○⁃∙*]|[-–—]|\d+[.)])\s+(.*)$/;
+    const locRe = /([A-Z][A-Za-z.\-' ]+,\s*(?:[A-Z]{2}|[A-Z][a-zA-Z]+))\s*$/;
+
+    const sectionOf = (raw0) => {
+      const t = raw0.replace(/[:•\-\s]+$/, '').trim();
+      if (t.length > 32) return null;
+      if (/^(work\s+|professional\s+|relevant\s+)?(experience|employment|work history)$/i.test(t)) return 'experience';
+      if (/^(projects?|personal projects?|academic projects?|selected projects?)$/i.test(t)) return 'projects';
+      if (/^(education|academics?)$/i.test(t)) return 'education';
+      if (/^(technical\s+|core\s+)?(skills|competencies|technologies|tools|skills?\s*&\s*tools)$/i.test(t)) return 'skills';
+      if (/^(summary|objective|profile|about|certifications?|awards?|honou?rs?|publications?|activities|leadership|volunteer(ing)?|interests|references|contact|coursework)$/i.test(t)) return 'other';
+      return null;
+    };
+    const extractDate = (s) => {
+      let m = s.match(rangeRe);
+      if (m) return { date: m[0].replace(/\s+/g, ' ').trim(), rest: (s.slice(0, m.index) + ' ' + s.slice(m.index + m[0].length)).trim() };
+      m = s.match(singleRe);
+      if (m) return { date: m[0].trim(), rest: (s.slice(0, m.index) + ' ' + s.slice(m.index + m[0].length)).trim() };
+      return { date: '', rest: s };
+    };
+    const extractLoc = (s) => {
+      const m = s.match(locRe);
+      if (m) return { loc: m[1].trim(), rest: s.slice(0, m.index).trim() };
+      return { loc: '', rest: s };
+    };
+    const clean = (s) => (s || '').replace(/^[\s–—\-|,•]+|[\s–—\-|,•]+$/g, '').trim();
+
+    // Bucket lines by section (default to experience until a header appears)
+    const buckets = { experience: [], projects: [], education: [], skills: [], other: [] };
+    let section = 'experience';
+    (raw.replace(/\r/g, '').split('\n')).forEach((line) => {
+      const norm = line.replace(/\t/g, '  ');
+      const sec = sectionOf(norm.trim());
+      if (sec) { section = sec; return; }
+      buckets[section].push(norm);
+    });
+
+    const headerToFields = (hdr, kind) => {
+      let a = '', b = '', loc = '', date = '';
+      const cleaned = hdr.map((x) => x.trim()).filter(Boolean).map((l) => {
+        let r = l;
+        if (!date) { const d = extractDate(r); if (d.date) { date = d.date; r = d.rest; } }
+        const lc = extractLoc(r); if (!loc && lc.loc) { loc = lc.loc; r = lc.rest; }
+        return clean(r);
+      }).filter(Boolean);
+      a = cleaned[0] || '';
+      b = cleaned[1] || '';
+      if (!b && /\s[–—|]\s|\s-\s|,\s/.test(a)) {
+        const parts = a.split(/\s+[–—|]\s+|\s-\s|,\s+/).map(clean).filter(Boolean);
+        if (parts.length >= 2) { a = parts[0]; b = parts.slice(1).join(', '); }
+      }
+      return { a, b, loc, date };
+    };
+
+    const parseBlocks = (lines, onEntry) => {
+      let header = [], entry = null;
+      const flush = () => {
+        if (entry) onEntry(entry, true);
+        else if (header.length) onEntry({ header: header.slice() }, false);
+        header = []; entry = null;
+      };
+      for (const line of lines) {
+        if (!line.trim()) { if (entry) flush(); continue; }
+        const bm = line.match(bulletRe);
+        if (bm) {
+          if (!entry) { entry = { header: header.slice(), bullets: [] }; header = []; }
+          entry.bullets.push(clean(bm[1]));
+        } else {
+          if (entry) { flush(); header = [line]; } else header.push(line);
+        }
+      }
+      flush();
+    };
+
+    const roles = (lines, kind) => {
+      const out = [];
+      parseBlocks(lines, (e) => {
+        const f = headerToFields(e.header || [], kind);
+        const bullets = (e.bullets || []).map((t) => ({ id: uid('b'), text: escapeText(t) }));
+        if (kind === 'projects') {
+          let name = f.a, org = f.loc;
+          if (!org && /\s[–—|]\s/.test(name)) { const parts = name.split(/\s+[–—|]\s+/).map(clean).filter(Boolean); name = parts[0]; org = parts.slice(1).join(' '); }
+          out.push({ id: uid('p'), name: name, org: org, subtitle: f.b, dates: f.date, bullets });
+        } else out.push({ id: uid('e'), company: f.a, location: f.loc, title: f.b, dates: f.date, bullets });
+      });
+      return out.filter((r) => (kind === 'projects' ? r.name : r.company) || r.bullets.length);
+    };
+
+    result.experiences = roles(buckets.experience, 'experience');
+    result.projects = roles(buckets.projects, 'projects');
+
+    // Education is usually header-only with no blank separators, so delimit
+    // each entry by its date-bearing line instead of by blank lines.
+    {
+      let cur = null;
+      const blank = () => ({ school: '', degree: '', location: '', dates: '', details: [] });
+      const push = () => { if (cur && (cur.school || cur.degree || cur.details.length)) result.education.push(cur); cur = null; };
+      for (const line of buckets.education) {
+        if (!line.trim()) { push(); continue; }
+        const bm = line.match(bulletRe);
+        if (bm) { if (!cur) cur = blank(); cur.details.push(escapeText(clean(bm[1]))); continue; }
+        if (!cur) cur = blank();
+        let r = line.trim(); let hadDate = false;
+        const d = extractDate(r); if (d.date) { if (!cur.dates) cur.dates = d.date; r = d.rest; hadDate = true; }
+        const lc = extractLoc(r); if (lc.loc) { if (!cur.location) cur.location = lc.loc; r = lc.rest; }
+        r = clean(r);
+        if (r) { if (!cur.school) cur.school = r; else if (!cur.degree) cur.degree = r; else cur.degree += ' ' + r; }
+        if (hadDate) push(); // a date line ends the education entry
+      }
+      push();
+    }
+
+    buckets.skills.forEach((line) => {
+      const t = clean(line.replace(/^[•▪◦·\-*]\s*/, ''));
+      if (!t) return;
+      const ci = t.indexOf(':');
+      if (ci > 0 && ci < 42) result.skills.push({ category: t.slice(0, ci).trim(), items: t.slice(ci + 1).split(/[,;|]/).map((x) => x.trim()).filter(Boolean) });
+      else { const items = t.split(/[,;|·•]/).map((x) => x.trim()).filter(Boolean); if (items.length) result.skills.push({ category: '', items }); }
+    });
+
+    return result;
+  }
+
+  function openImportModal() {
+    let parsed = null;
+    const overlay = h('div', { class: 'rb-modal-overlay', onclick: (e) => { if (e.target === overlay) overlay.remove(); } });
+    const ta = h('textarea', { class: 'rb-import-ta', placeholder: 'Paste your full resume or experience here.\n\nTip: keep section headers (EXPERIENCE, PROJECTS, EDUCATION, SKILLS) and bullet points (•, -) for the cleanest results. Everything is editable after import.' });
+    const summary = h('div', { class: 'rb-import-summary' });
+    const doParse = () => {
+      parsed = parseResumeText(ta.value);
+      summary.innerHTML = '';
+      const nb = parsed.experiences.reduce((n, r) => n + r.bullets.length, 0) + parsed.projects.reduce((n, r) => n + r.bullets.length, 0);
+      summary.append(h('div', { class: 'rb-import-counts' },
+        `Found: ${parsed.experiences.length} role(s), ${nb} bullet(s), ${parsed.projects.length} project(s), ${parsed.education.length} education, ${parsed.skills.length} skill group(s)`));
+      const prev = h('div', { class: 'rb-import-preview' });
+      parsed.experiences.concat(parsed.projects.map((p) => ({ company: p.name, title: p.subtitle, location: p.org, dates: p.dates, bullets: p.bullets }))).forEach((r) => {
+        prev.append(h('div', { class: 'rb-import-item' },
+          h('div', {}, h('strong', {}, r.company || '(untitled)'), r.title ? ' — ' + r.title : ''),
+          (r.location || r.dates) ? h('div', { class: 'rb-import-meta' }, [r.location, r.dates].filter(Boolean).join('  ·  ')) : null,
+          ...r.bullets.slice(0, 3).map((b) => h('div', { class: 'rb-import-bul' }, '• ' + stripHTML(b.text))),
+          r.bullets.length > 3 ? h('div', { class: 'rb-import-meta' }, '+' + (r.bullets.length - 3) + ' more') : null
+        ));
+      });
+      summary.append(prev);
+    };
+    const apply = (replace) => {
+      if (!parsed) doParse();
+      if (!parsed.experiences.length && !parsed.projects.length && !parsed.education.length && !parsed.skills.length) { toast('Nothing detected — paste some text and click Parse.', 'error'); return; }
+      if (replace) { model.library.experiences = []; model.library.projects = []; }
+      model.library.experiences = (model.library.experiences || []).concat(parsed.experiences);
+      model.library.projects = (model.library.projects || []).concat(parsed.projects);
+      if (parsed.education.length) { if (replace) model.profile.education = []; model.profile.education = (model.profile.education || []).concat(parsed.education); }
+      if (parsed.skills.length) { if (replace) model.profile.skills = []; model.profile.skills = (model.profile.skills || []).concat(parsed.skills); }
+      if (replace) { model.draft = defaultDraft(model.library, model.profile); }
+      saveNow();
+      overlay.remove();
+      render();
+      toast(replace ? 'Imported — your resume now shows everything you pasted.' : 'Added to your library. Drag roles/bullets into the resume.', 'success');
+    };
+    overlay.append(h('div', { class: 'rb-modal' },
+      h('div', { class: 'rb-modal-head' }, h('strong', {}, 'Paste & import résumé'), h('button', { class: 'rb-mini', onclick: () => overlay.remove() }, 'Close')),
+      ta,
+      h('div', { class: 'rb-modal-actions' },
+        h('button', { onclick: doParse }, 'Parse preview'),
+        h('button', { class: 'primary', onclick: () => apply(false) }, 'Add to library'),
+        h('button', { onclick: () => apply(true) }, 'Replace everything')
+      ),
+      summary
+    ));
+    document.body.append(overlay);
+    setTimeout(() => ta.focus(), 30);
   }
 
   // Build clean, self-contained resume HTML from the MODEL (not the live DOM),
