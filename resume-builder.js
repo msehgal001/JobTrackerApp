@@ -230,6 +230,23 @@
     }
   ];
 
+  // Keywords used to auto-suggest a template from a pasted JD.
+  const PRESET_MATCH = {
+    systems: ['systems engineering', 'mbse', 'sysml', 'requirements', 'traceability', 'verification', 'validation', 'v&v', 'trade study', 'trade studies', 'conops', 'fmea', 'wbs', 'interface control', 'icd', 'incose', 'model-based', 'requirements management', 'concept of operations'],
+    structures: ['structural', 'structures', 'fea', 'finite element', 'modal analysis', 'modal', 'vibration', 'stress', 'nastran', 'abaqus', 'buckling', 'fatigue', 'load', 'mechanical', 'solidworks', 'catia', 'gd&t', 'strength of materials', 'composite', 'dynamics'],
+    cfd: ['cfd', 'aerodynamics', 'aerodynamic', 'fluid dynamics', 'rans', 'les', 'turbulence', 'fluent', 'openfoam', 'star-ccm', 'supersonic', 'hypersonic', 'propulsion', 'nozzle', 'wind tunnel', 'mach', 'boundary layer', 'aerothermal', 'combustion'],
+    ml: ['machine learning', 'neural network', 'deep learning', 'tensorflow', 'pytorch', 'python', 'data pipeline', 'full-stack', 'full stack', 'flask', 'sql', 'software', 'backend', 'frontend', 'data science', 'algorithm', 'ml']
+  };
+  function scorePresets(jd) {
+    const text = (jd || '').toLowerCase();
+    return DEFAULT_PRESETS.filter((p) => !p.full).map((p) => {
+      const terms = PRESET_MATCH[p.id] || [];
+      let score = 0; const hits = [];
+      terms.forEach((t) => { if (termInText(t, text)) { score += t.includes(' ') ? 2 : 1; hits.push(t); } });
+      return { preset: p, score, hits };
+    }).sort((a, b) => b.score - a.score);
+  }
+
   let model = null;
   let drag = null;
   let saveTimer = null;
@@ -344,6 +361,26 @@
     if (!preset) preset = DEFAULT_PRESETS.find((p) => v.split(/\s+/).some((w) => w.length > 1 && (p.search || '').includes(w)));
     if (!preset) { toast('No template matches "' + value + '". Try: structures, systems, CFD, ML, everything.', 'error'); return; }
     confirmAndLoadPreset(preset);
+  }
+
+  // Suggest the best-fit template from the pasted JD (updates in place; no re-render).
+  function updateTemplateSuggestion() {
+    const el = $('#rb-template-suggest');
+    if (!el) return;
+    const jd = (model.draft && model.draft.jobDescription) || '';
+    el.innerHTML = '';
+    if (jd.trim().length < 50) { el.classList.add('hidden'); return; }
+    const ranked = scorePresets(jd);
+    const best = ranked[0];
+    if (!best || best.score < 3) { el.classList.add('hidden'); return; }
+    el.classList.remove('hidden');
+    el.append(
+      h('span', { class: 'rb-suggest-text' }, '💡 This JD reads like a '),
+      h('strong', {}, best.preset.name),
+      h('span', { class: 'rb-suggest-text' }, ' role'),
+      best.hits.length ? h('span', { class: 'rb-suggest-hits' }, ' — matched: ' + best.hits.slice(0, 5).join(', ')) : null,
+      h('button', { class: 'rb-mini rb-suggest-btn', onclick: () => confirmAndLoadPreset(best.preset) }, 'Use ' + best.preset.short + ' template')
+    );
   }
 
   function defaultDraft(library, profile) {
@@ -477,6 +514,7 @@
     );
     renderVersionList();
     decorateAnalysis();
+    updateTemplateSuggestion();
     const paper = $('#rb-paper');
     if (paper) paper.addEventListener('input', debouncedFit);
     fitPaper();
@@ -614,10 +652,13 @@
         h('div', {}, h('strong', {}, 'Job description'), h('span', {}, ' paste the JD here, then analyze keyword coverage')),
         h('button', { onclick: runAnalysis }, 'Analyze JD')
       ),
-      h('textarea', { id: 'rb-jd', placeholder: 'Paste the full job description...', oninput: (e) => { d.jobDescription = e.target.value; scheduleSave(); } }, d.jobDescription || ''),
+      h('textarea', { id: 'rb-jd', placeholder: 'Paste the full job description...', oninput: (e) => { d.jobDescription = e.target.value; scheduleSave(); debouncedSuggest(); } }, d.jobDescription || ''),
+      h('div', { id: 'rb-template-suggest', class: 'rb-template-suggest hidden' }),
       h('div', { id: 'rb-analysis', class: 'rb-analysis' })
     );
   }
+  let suggestTimer = null;
+  function debouncedSuggest() { clearTimeout(suggestTimer); suggestTimer = setTimeout(updateTemplateSuggestion, 250); }
 
   function renderPaper() {
     const p = model.profile;
@@ -1007,6 +1048,7 @@
     analysis = { keywords: kws, matched, missing };
     renderAnalysis();
     decorateAnalysis();
+    updateTemplateSuggestion();
   }
 
   function renderAnalysis() {
