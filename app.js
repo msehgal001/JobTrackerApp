@@ -238,6 +238,7 @@ function openView(name) {
   if (name === 'connections') renderConnections();
   if (name === 'templates') renderTemplates();
   if (name === 'resume') window.JobResumeBuilder?.render();
+  if (name === 'agents') window.JobAgents?.render();
   if (name === 'settings') loadSettingsForm();
   window.scrollTo(0, 0);
 }
