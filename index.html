@@ -67,7 +67,7 @@
   <aside class="sidebar">
     <div class="brand">
       <h1>JOB<span class="accent">.</span><br>COMMAND</h1>
-      <div class="tag">v2.6 — resume platform</div>
+      <div class="tag">v2.7 — ai agents</div>
     </div>
     <div class="nav-item active" data-view="dashboard">
       <span class="icon">◆</span> <span class="nav-label">Dashboard</span>
@@ -539,7 +539,23 @@
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('service-worker.js').catch(e => console.warn('SW register failed:', e));
+    const hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.register('service-worker.js').then(reg => {
+      // Re-check for a new version whenever the app is brought back to the
+      // foreground (installed PWAs resume from memory and never re-navigate,
+      // so without this they can hold a stale shell indefinitely).
+      const check = () => reg.update().catch(() => {});
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+      setInterval(check, 30 * 60 * 1000);
+    }).catch(e => console.warn('SW register failed:', e));
+    // When an updated service worker takes control, reload once to pick up
+    // the new shell. Skip the very first install (no previous controller).
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadController || reloaded) return;
+      reloaded = true;
+      location.reload();
+    });
   });
 }
 </script>

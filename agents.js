@@ -196,7 +196,7 @@ HARD WRITING RULES: no em dashes ever; no hedge language; metrics front-loaded; 
       push('Parsing analysis...');
       const a = parseJSON(text);
       push('Done. Fit: ' + a.fit_score);
-      const col = a.fit_score >= 70 ? '#2f9e6e' : a.fit_score >= 50 ? '#c98a1b' : '#c0392b';
+      const col = a.fit_score >= 70 ? 'var(--green)' : a.fit_score >= 50 ? 'var(--accent-2)' : 'var(--red)';
       out.innerHTML =
         '<div class="ag-card"><div style="display:flex;gap:14px;align-items:center">' +
           '<span style="font-size:34px;font-weight:800;color:' + col + '">' + a.fit_score + '</span>' +
@@ -204,7 +204,7 @@ HARD WRITING RULES: no em dashes ever; no hedge language; metrics front-loaded; 
           (a.opt_flag && a.opt_flag !== 'none' ? '<div class="ag-flag">FLAG: ' + esc(a.opt_flag) + '</div>' : '') +
           '</div></div></div>' +
         '<div class="ag-card"><b>Matched:</b> ' + (a.matched || []).map(esc).join(', ') +
-          '<br><b>Missing (work these in):</b> <span style="color:#c0392b">' + (a.missing || []).map(esc).join(', ') + '</span></div>' +
+          '<br><b>Missing (work these in):</b> <span style="color:var(--red)">' + (a.missing || []).map(esc).join(', ') + '</span></div>' +
         '<div class="ag-card"><b>Gaps</b>' + (a.gaps || []).map(g => '<div style="margin-top:6px"><b>' + esc(g.gap) + '</b><div class="ag-sub">' + esc(g.mitigation) + '</div></div>').join('') + '</div>' +
         '<div class="ag-card"><b>Tailored bullets</b> <span class="ag-sub">(start from: ' + esc(a.resume_track || '') + ')</span>' +
           (a.bullets || []).map(b => '<div class="ag-bullet">' + esc(b) + ' ' + copyBtn(b) + '</div>').join('') + '</div>' +
@@ -277,7 +277,7 @@ HARD WRITING RULES: no em dashes ever; no hedge language; metrics front-loaded; 
     if (!host || host.dataset.built) { refreshKeyBar(); return; }
     host.dataset.built = '1';
     host.innerHTML =
-      '<h2>AI Agents</h2>' +
+      '<div class="page-header"><h2>AI Agents.</h2><div class="date">scout → analyze → outreach → brief</div></div>' +
       '<div class="ag-keybar" id="ag-keybar"></div>' +
       '<div class="ag-grid">' +
 
@@ -340,26 +340,31 @@ HARD WRITING RULES: no em dashes ever; no hedge language; metrics front-loaded; 
   // ============ STYLES (scoped, injected: zero CSS-file changes) ============
   const css = document.createElement('style');
   css.textContent = `
-    #view-agents .ag-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;margin-top:12px}
-    #view-agents .ag-panel{background:var(--card,#fff);border:1px solid var(--border,#e2e2e2);border-radius:10px;padding:16px}
-    #view-agents .ag-panel h3{margin:0 0 4px}
-    #view-agents .ag-sub{font-size:12px;opacity:.65;margin:0 0 8px}
-    #view-agents .ag-input{width:100%;box-sizing:border-box;margin:0 0 8px;padding:8px 10px;border:1px solid var(--border,#ccc);border-radius:6px;font:inherit;background:var(--bg,#fff);color:inherit}
-    #view-agents .ag-run{width:100%;padding:9px;border:none;border-radius:6px;background:#1a56db;color:#fff;font-weight:700;cursor:pointer}
-    #view-agents .ag-run:hover{filter:brightness(1.08)}
-    #view-agents .ag-log{display:none;margin-top:8px;max-height:90px;overflow-y:auto;background:#0d1117;border-radius:6px;padding:6px 8px;font-family:ui-monospace,monospace;font-size:11px}
-    #view-agents .ag-logline{color:#4a5568}
-    #view-agents .ag-loglast{color:#53d8fb}
-    #view-agents .ag-card{border:1px solid var(--border,#e2e2e2);border-left:3px solid #1a56db;border-radius:6px;padding:10px 12px;margin-top:10px;font-size:13.5px}
-    #view-agents .ag-card-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+    #view-agents .ag-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;margin-top:16px}
+    #view-agents .ag-panel{background:var(--bg-elev);border:1px solid var(--border);border-radius:12px;padding:20px}
+    #view-agents .ag-panel h3{font-size:18px;font-weight:700;margin:0 0 4px;color:var(--text)}
+    #view-agents .ag-sub{font-size:13px;color:var(--text-dim);margin:0 0 12px;line-height:1.45}
+    #view-agents .ag-input{width:100%;margin:0 0 10px}
+    #view-agents select.ag-input{font-family:'JetBrains Mono',monospace;font-size:13px}
+    #view-agents .ag-run{width:100%;padding:10px 12px;background:var(--accent);color:var(--bg);border:1px solid var(--accent);border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;font-weight:700;cursor:pointer;transition:all 0.15s}
+    #view-agents .ag-run:hover{background:var(--accent-2);border-color:var(--accent-2);color:var(--bg)}
+    #view-agents .ag-log{display:none;margin-top:12px;max-height:96px;overflow-y:auto;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-family:'JetBrains Mono',monospace;font-size:11px}
+    #view-agents .ag-logline{color:var(--text-faint)}
+    #view-agents .ag-loglast{color:var(--accent-2)}
+    #view-agents .ag-card{background:var(--bg-elev-2);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:8px;padding:12px 14px;margin-top:12px;font-size:14px}
+    #view-agents .ag-card-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
     #view-agents .ag-body{margin-top:6px}
-    #view-agents .ag-flag{color:#c98a1b;font-size:12px;margin-top:4px;font-weight:600}
-    #view-agents .ag-msg{white-space:pre-wrap;margin:6px 0;line-height:1.5}
-    #view-agents .ag-bullet{margin-top:8px;padding-top:8px;border-top:1px dashed var(--border,#ddd)}
-    #view-agents .ag-add{border:1px solid #2f9e6e;color:#2f9e6e;background:none;border-radius:5px;padding:4px 10px;font-size:12px;cursor:pointer;margin-top:8px;white-space:nowrap}
-    #view-agents .ag-copy{border:1px solid var(--border,#ccc);background:none;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;opacity:.8}
-    #view-agents .ag-keybar{margin:6px 0 4px}
-    #view-agents .ag-ok{color:#2f9e6e;font-size:13px;font-weight:600}
+    #view-agents .ag-flag{color:var(--accent-2);font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.06em;margin-top:6px;font-weight:700}
+    #view-agents .ag-msg{white-space:pre-wrap;margin:8px 0;line-height:1.55}
+    #view-agents .ag-bullet{margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)}
+    #view-agents .ag-add{border:1px solid var(--green);color:var(--green);background:transparent;border-radius:4px;padding:5px 12px;font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.08em;font-weight:700;cursor:pointer;margin-top:10px;white-space:nowrap;transition:all 0.15s}
+    #view-agents .ag-add:hover{background:var(--green);border-color:var(--green);color:var(--bg)}
+    #view-agents .ag-copy{border:1px solid var(--border);background:transparent;color:var(--text-dim);border-radius:4px;padding:2px 8px;font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.06em;font-weight:700;cursor:pointer;transition:all 0.15s}
+    #view-agents .ag-copy:hover{background:transparent;border-color:var(--accent);color:var(--accent)}
+    #view-agents .ag-keybar{background:var(--bg-elev);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin:0}
+    #view-agents .ag-keybar .ag-input{margin:0}
+    #view-agents .ag-keybar .ag-sub{margin:8px 0 0}
+    #view-agents .ag-ok{color:var(--green);font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700}
   `;
   document.head.appendChild(css);
 
